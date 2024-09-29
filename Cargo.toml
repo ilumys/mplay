@@ -1,0 +1,11 @@
+[package]
+name = "fy"
+version = "0.1.0"
+description = "Music player"
+publish = false
+edition = "2021"
+
+[dependencies]
+symphonia = { version = "0.5.4", features = ["flac"] }
+libpulse-binding = "2.28.1"
+libpulse-simple-binding = "2.28.1"
