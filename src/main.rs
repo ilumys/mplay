@@ -1,27 +1,28 @@
-use std::{env, path::Path};
+use std::io::BufReader;
+use std::{fs::File, path::Path};
 
-mod media;
-mod output;
+use rodio::{Decoder, OutputStream, Sink};
 
-// todo: change all panic calls to an exit code
-// or maybe something else? still deciding
+mod metadata;
+
 fn main() {
-    let args: Vec<String> = env::args().collect();
+    let args: Vec<String> = std::env::args().collect();
+    let path = Path::new(args.get(1).expect("expected file path"));
 
-    if args.len() == 1 {
-        println!("here we open ui")
-    } else if args.len() > 1 {
-        println!("track: {}", args[1]);
-        let path = Path::new(&args[1]);
-        if path.is_dir() {
-            for file in path.read_dir().expect("unable to read dir") {
-                if let Ok(track) = file {
-                    println!("current track: {}", &track.path().display());
-                    media::run_track(&track.path());
-                }
-            }
-        } else if path.is_file() {
-            media::run_track(path);
+    println!("path: `{}`", path.to_str().unwrap());
+
+    if let Some(tags) = metadata::get_tags(path) {
+        for tag in tags.iter() {
+            println!("{}: {}", tag.key, tag.value);
         }
     }
+
+    let (_stream, stream_handle) = OutputStream::try_default().expect("stream error");
+    let sink = Sink::try_new(&stream_handle).expect("sink error");
+
+    let data = BufReader::new(File::open(path).unwrap());
+    let source = Decoder::new(data).expect("decode error");
+
+    sink.append(source);
+    sink.sleep_until_end();
 }
