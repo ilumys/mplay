@@ -31,7 +31,6 @@ pub fn run_track(path: &Path) {
     // probe mss for metadata and get format reader
     match symphonia::default::get_probe().format(&hint, mss, &format_opts, &metadata_opts) {
         Ok(mut probe) => {
-            println!("getting format");
             let decode_opts = DecoderOptions { verify: true };
             play_track(&mut probe.format, &decode_opts).unwrap();
         }
@@ -58,7 +57,7 @@ fn play_track(
         .make(&track.codec_params, decode_opts)
         .unwrap();
 
-    // get base time for track and elapsed duration
+    // get base time for track and elapsed duration, for display purposes
     //let time_base = track.codec_params.time_base;
     //let duration = track.codec_params.n_frames.unwrap() + track.codec_params.start_ts;
 
@@ -78,21 +77,6 @@ fn play_track(
         // decode packet to audio samples
         match decoder.decode(&packet) {
             Ok(decode) => {
-                // if none, open the audio output
-                /*if audio_output.is_none() {
-                    let spec = *decode.spec();
-                    let duration = decode.capacity() as u64;
-                    // try open audio output
-                    // need to implement
-                    audio_output.replace(output::open(spec, duration).unwrap());
-                }
-
-                if packet.ts() >= 0 {
-                    if let Some(audio_output) = audio_output {
-                        audio_output.write(decode).unwrap()
-                    }
-                }*/
-
                 if let Some(audio_output) = audio_output.as_mut() {
                     audio_output.write(decode).unwrap();
                 } else {
