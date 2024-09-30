@@ -15,11 +15,11 @@ use symphonia::core::{
 // expect a quick look would turn up crates for this purpose, alas
 
 pub fn get_tags(path: &Path) -> Option<Vec<Tag>> {
-    let source = Box::new(File::open(path).unwrap());
+    let source = Box::new(File::open(path).expect("box file error"));
     let mss = MediaSourceStream::new(source, Default::default());
 
     let mut hint = Hint::new();
-    hint.with_extension(path.extension().unwrap().to_str().unwrap());
+    hint.with_extension(path.extension()?.to_str().expect("hint error"));
 
     let meta_opts: MetadataOptions = Default::default();
     let fmt_opts: FormatOptions = Default::default();
