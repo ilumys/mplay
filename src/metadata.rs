@@ -14,7 +14,7 @@ use symphonia::core::{
 // tags are just metadata - it is unnecessary to read a file in full to retrieve
 // expect a quick look would turn up crates for this purpose, alas
 
-pub fn get_tags(path: &Path) -> Option<Vec<Tag>> {
+pub fn get_tags(path: &Path) -> Option<Vec<(String, String)>> {
     let source = Box::new(File::open(path).expect("box file error"));
     let mss = MediaSourceStream::new(source, Default::default());
 
@@ -31,14 +31,26 @@ pub fn get_tags(path: &Path) -> Option<Vec<Tag>> {
     if let Some(meta) = probe.format.metadata().current() {
         let tags = meta.tags();
         if !tags.is_empty() {
-            return Some(tags.to_owned());
+            //return Some(tags.to_owned());
+            return Some(standard_tags(tags));
         }
     } else if let Some(meta) = probe.metadata.get().as_ref().and_then(|m| m.current()) {
         let tags = meta.tags();
         if !tags.is_empty() {
-            return Some(tags.to_owned());
+            //return Some(tags.to_owned());
+            return Some(standard_tags(tags));
         }
     }
 
     None
+}
+
+fn standard_tags(tags: &[Tag]) -> Vec<(String, String)> {
+    let mut std_tags: Vec<(String, String)> = vec![];
+    for tag in tags.iter().filter(|t| t.is_known()) {
+        if let Some(key) = tag.std_key {
+            std_tags.push((format!("{:?}", key), tag.value.to_string()));
+        }
+    }
+    std_tags
 }
