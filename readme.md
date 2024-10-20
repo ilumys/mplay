@@ -1,5 +1,4 @@
 todo:
-- volume and play-pause support through rodio sink
 - display track duration
 - refine metadata retrieval and output
   seriously consider a new dependency to retrieve file tags (or do it myself)
@@ -11,6 +10,10 @@ todo:
   tabs- queue and library?
   displaying track details and metadata- columns for name/artist/duration?
 - option to play all from album/artist/library or shuffle
+- intelligent library compilation i.e., detect artist/album/title from directory hierarchy
+
+aspirational:
+- replace rodio with custom sink build on top of symphonia
 
 structure:
 - player loads with a base directory (~/Music/)

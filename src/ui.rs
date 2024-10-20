@@ -13,12 +13,6 @@ pub fn run(mut term: ratatui::DefaultTerminal) {
     let (_stream, stream_handle) = rodio::OutputStream::try_default().expect("stream error");
     let sink = rodio::Sink::try_new(&stream_handle).expect("sink error");
 
-    // printing is very bad
-    // each line starts at last column of previous line
-    //let path = Path::new(arg);
-    // need to return metadata from this fn, to populate tui frame
-    //selecter(path, &sink);
-
     // want to track state of artists and albums, for scroll and other display
     // also want to make artists and albums into a struct, with strong/weak references to each other
 
