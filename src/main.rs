@@ -1,9 +1,14 @@
 mod library;
-mod ui;
+mod player;
 
 fn main() {
-    library::build_library();
+    let music_dir = format!("{}/Music/", env!("HOME"));
+    // todo: lazy load library
+    // start display with only artists to allow more time/space to load all
+    let library = library::build_library(music_dir.as_str());
     let terminal = ratatui::init();
-    ui::run(terminal);
+
+    let player = player::Player::new(library);
+    player.run(terminal);
     ratatui::restore();
 }

@@ -17,6 +17,3 @@ version = "0.5.4"
 # cri
 [dependencies.ratatui]
 version = "0.28.1"
-
-[dependencies.crossterm]
-version = "0.28.1"

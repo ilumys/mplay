@@ -1,3 +1,5 @@
+performance is so poor right now, in great need of review
+
 todo:
 - display track duration
 - refine metadata retrieval and output
@@ -36,3 +38,8 @@ track struct:
 - lyrics
 
 for queue, vecdeque<pointer_to_track>
+
+acknowledgements:
+- ratatui, as the tui library, and for the documentation provided
+- binsider, as a point of reference for tui impl
+- symphonia & rodio for audio library capabilities
