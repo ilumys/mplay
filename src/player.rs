@@ -1,179 +1,17 @@
 use ratatui::{
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
     prelude::*,
-    widgets::{Block, List, ListItem, ListState, Paragraph, Widget, Wrap},
+    widgets::{Block, List, ListItem, Paragraph, Widget},
     DefaultTerminal,
 };
 
-use super::library::Track;
+use crate::artist::ArtistList;
 
 pub struct Player {
     active: bool,
     artist_list: ArtistList,
-    playing: Option<Track>,
+    // implement queue
 }
-
-#[derive(Clone, PartialEq)]
-pub struct Album {
-    name: String,
-    album_artist: String,
-    date: String,
-    num_tracks: String,
-    track_list: Vec<Track>,
-}
-
-#[derive(Clone, PartialEq)]
-pub struct Artist {
-    name: String,
-    albums: AlbumList,
-}
-
-#[derive(Clone, PartialEq)]
-pub struct AlbumList {
-    albums: Vec<Album>,
-    state: ListState,
-}
-
-#[derive(Clone, PartialEq)]
-pub struct ArtistList {
-    artists: Vec<Artist>,
-    state: ListState,
-}
-
-// curious if compiler would optimise half these impl's out
-// seeing as there are multiple near duplicates
-// build release and have a look with ghidra? when done
-
-impl
-    FromIterator<(
-        &'static str,
-        &'static str,
-        &'static str,
-        &'static str,
-        Vec<Track>,
-    )> for AlbumList
-{
-    fn from_iter<
-        T: IntoIterator<
-            Item = (
-                &'static str,
-                &'static str,
-                &'static str,
-                &'static str,
-                Vec<Track>,
-            ),
-        >,
-    >(
-        iter: T,
-    ) -> Self {
-        let albums = iter
-            .into_iter()
-            .map(|(name, album_artist, date, num_tracks, track_list)| {
-                Album::new(name, album_artist, date, num_tracks, track_list)
-            })
-            .collect();
-        let state = ListState::default();
-        Self { albums, state }
-    }
-}
-
-impl FromIterator<(&'static str, AlbumList)> for ArtistList {
-    fn from_iter<T: IntoIterator<Item = (&'static str, AlbumList)>>(iter: T) -> Self {
-        let artists = iter
-            .into_iter()
-            .map(|(name, albums)| Artist::new(name, albums))
-            .collect();
-        let state = ListState::default();
-        Self { artists, state }
-    }
-}
-
-impl From<&Artist> for ListItem<'_> {
-    fn from(value: &Artist) -> Self {
-        let line = Line::from(format!("{}", value.name));
-        ListItem::new(line)
-    }
-}
-
-impl From<&Album> for ListItem<'_> {
-    fn from(value: &Album) -> Self {
-        let line = Line::from(format!("{}", value.name));
-        ListItem::new(line)
-    }
-}
-
-impl Default for Album {
-    fn default() -> Self {
-        Self {
-            album_artist: String::new(),
-            date: String::new(),
-            name: String::new(),
-            num_tracks: String::new(),
-            track_list: vec![],
-        }
-    }
-}
-
-impl Album {
-    pub fn new(
-        name: &str,
-        album_artist: &str,
-        date: &str,
-        num_tracks: &str,
-        track_list: Vec<Track>,
-    ) -> Self {
-        Self {
-            name: name.to_string(),
-            album_artist: album_artist.to_string(),
-            date: date.to_string(),
-            num_tracks: num_tracks.to_string(),
-            track_list,
-        }
-    }
-}
-
-impl From<&Vec<Album>> for AlbumList {
-    fn from(value: &Vec<Album>) -> Self {
-        Self {
-            albums: value.clone(),
-            state: ListState::default(),
-        }
-    }
-}
-
-impl ArtistList {
-    pub fn new() -> Self {
-        Self {
-            artists: vec![],
-            state: ListState::default(),
-        }
-    }
-    pub fn add_artist(&mut self, other: Artist) {
-        self.artists.push(other);
-    }
-    pub fn get_artists(&mut self) -> &Vec<Artist> {
-        return &self.artists;
-    }
-}
-
-impl Artist {
-    pub fn new(name: &str, albums: AlbumList) -> Self {
-        Self {
-            name: name.to_string(),
-            albums,
-        }
-    }
-}
-
-// work in progress
-// impl Default for Player {
-//     fn default() -> Self {
-//         Self {
-//             active: true,
-//             artist_list:
-//         }
-//     }
-// }
 
 impl Player {
     // control
@@ -181,7 +19,6 @@ impl Player {
         Self {
             active: true,
             artist_list,
-            playing: None,
         }
     }
     pub fn run(mut self, mut terminal: DefaultTerminal) {
@@ -201,11 +38,12 @@ impl Player {
             return;
         }
         match key.code {
+            // somehow, different key strokes move the list. very odd
             KeyCode::Esc | KeyCode::Char('q') => self.active = false,
             KeyCode::Up => self.select_previous(),
             KeyCode::Down => self.select_next(),
-            KeyCode::Enter | KeyCode::Char(' ') => {}
-            _ => {}
+            KeyCode::Enter | KeyCode::Char(' ') => (),
+            _ => (),
         }
     }
     fn select_next(&mut self) {
@@ -239,8 +77,8 @@ impl Player {
         };
 
         let albums: Vec<ListItem> = self.artist_list.artists[index]
-            .albums
-            .albums
+            .album_list
+            .albums()
             .iter()
             .map(|album| ListItem::from(album))
             .collect();
@@ -254,7 +92,7 @@ impl Player {
             list,
             area,
             buf,
-            &mut self.artist_list.artists[index].albums.state,
+            &mut self.artist_list.artists[index].album_list.state,
         );
     }
 

@@ -5,7 +5,7 @@ use symphonia::{
     default::get_probe,
 };
 
-use super::player::{Album, AlbumList, Artist, ArtistList};
+use crate::artist::{Album, AlbumList, Artist, ArtistList};
 
 // this is a bit much ... need to clean impl
 // it would, admittedly, be nice to build artist/album ephemerally
@@ -26,68 +26,68 @@ pub struct Track {
 }
 
 impl Track {
-    pub fn get_path(&self) -> &str {
-        return &self.path;
+    pub fn path(&self) -> &str {
+        &self.path.as_str()
     }
-    pub fn get_title(&self) -> &str {
-        return &self.title;
+    pub fn title(&self) -> &str {
+        &self.title.as_str()
     }
-    pub fn get_album(&self) -> &str {
-        return &self.album;
+    pub fn album(&self) -> &str {
+        &self.album.as_str()
     }
-    pub fn get_album_artist(&self) -> &str {
-        return &self.album_artist;
+    pub fn album_artist(&self) -> &str {
+        &self.album_artist.as_str()
     }
-    pub fn get_artist(&self) -> &str {
-        return &self.artist;
+    pub fn artist(&self) -> &str {
+        &self.artist.as_str()
     }
-    pub fn get_lyrics(&self) -> &str {
-        return &self.lyrics;
+    pub fn lyrics(&self) -> &str {
+        &self.lyrics.as_str()
     }
-    pub fn get_duration(&self) -> f32 {
-        return self.duration;
+    pub fn duration(&self) -> f32 {
+        self.duration
     }
-    pub fn get_track_num(&self) -> &str {
-        return &self.track_num;
+    pub fn track_num(&self) -> &str {
+        &self.track_num.as_str()
     }
-    pub fn get_track_total(&self) -> &str {
-        return &self.track_total;
+    pub fn track_total(&self) -> &str {
+        &self.track_total.as_str()
     }
-    pub fn get_date(&self) -> &str {
-        return &self.date;
+    pub fn date(&self) -> &str {
+        &self.date.as_str()
     }
 }
 
 pub fn build_library(directory: &str) -> ArtistList {
-    let mut tracks: Vec<Track> = vec![];
+    let mut tracks: Vec<Track> = Vec::new();
     compile_library(directory, &mut tracks);
 
     // I can hardly say I like this, but it works
     let mut artists: HashMap<&str, Vec<Album>> = HashMap::new();
-    let mut album_names: Vec<&str> = vec![];
+    let mut album_names: Vec<&str> = Vec::new();
     for t in tracks.iter() {
-        if !artists.contains_key(t.get_artist()) {
+        if !artists.contains_key(t.artist()) {
             // if artist doesn't exist, neither does this album
             // unless there's an unaccounted for edge case
-            album_names.push(t.get_album());
+            album_names.push(t.album());
             artists.insert(
-                t.get_artist(),
+                t.artist(),
                 vec![Album::new(
-                    t.get_album(),
-                    t.get_album_artist(),
-                    t.get_date(),
-                    t.get_track_num(),
+                    t.album(),
+                    t.album_artist(),
+                    t.date(),
+                    t.track_num(),
                     vec![t.clone()], // hmm
                 )],
             );
         } else {
-            if !album_names.contains(&t.get_album()) {
-                album_names.push(t.get_album());
-                artists.get_mut(t.get_artist()).unwrap().push(Album::new(
-                    t.get_album(),
-                    t.get_album_artist(),
-                    t.get_date(),
-                    t.get_track_num(),
+            if !album_names.contains(&t.album()) {
+                album_names.push(t.album());
+                artists.get_mut(t.artist()).unwrap().push(Album::new(
+                    t.album(),
+                    t.album_artist(),
+                    t.date(),
+                    t.track_num(),
                     vec![t.clone()],
                 ));
             }
@@ -95,7 +95,7 @@ pub fn build_library(directory: &str) -> ArtistList {
         // what if track has no tags? add to a default artist
     }
 
-    let mut artist_list: ArtistList = ArtistList::new();
+    let mut artist_list: ArtistList = ArtistList::default();
     for (k, v) in artists.iter() {
         let albums = AlbumList::from(v);
         artist_list.add_artist(Artist::new(k, albums));

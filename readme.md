@@ -3,14 +3,11 @@ performance is so poor right now, in great need of review
 todo:
 - display track duration
 - refine metadata retrieval and output
-  seriously consider a new dependency to retrieve file tags (or do it myself)
 - mpris-enable for play-pause and forward-backward control via keybind
 - optionally daemonise
 - make concurrent? to ensure selecting a track does not block other actions
 - use a queue to play tracks and hold metadata, as opposed to spamming append()
-- whole bunch of ui fun. yay
-  tabs- queue and library?
-  displaying track details and metadata- columns for name/artist/duration?
+- whole bunch of ui fun. set context for which 'tab' is selected
 - option to play all from album/artist/library or shuffle
 - intelligent library compilation i.e., detect artist/album/title from directory hierarchy
 
@@ -21,7 +18,6 @@ structure:
 - player loads with a base directory (~/Music/)
 - all supported tracks are loaded from this directory recursively
 - tracks are then grouped by album and by albumartist
-  requires opening a file buffer to read metadata :(
   optimise- cache discovered metadata and track changes with lock file/ hashes
 - select track to play
 - track is moved to front of queue or queue is emptied save track

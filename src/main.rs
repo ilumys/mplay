@@ -1,3 +1,4 @@
+mod artist;
 mod library;
 mod player;
 
@@ -8,6 +9,7 @@ fn main() {
     let library = library::build_library(music_dir.as_str());
     let terminal = ratatui::init();
 
+    // strong want to optimise player
     let player = player::Player::new(library);
     player.run(terminal);
     ratatui::restore();
