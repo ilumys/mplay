@@ -1,6 +1,9 @@
-performance is so poor right now, in great need of review
+# About
 
-todo:
+Presently a rather simple terminal-based music player, loading tracks from a directory, sorting by tag, and playing on select.
+
+# Todo
+
 - display track duration
 - refine metadata retrieval and output
 - mpris-enable for play-pause and forward-backward control via keybind
@@ -14,28 +17,8 @@ todo:
 aspirational:
 - replace rodio with custom sink build on top of symphonia
 
-structure:
-- player loads with a base directory (~/Music/)
-- all supported tracks are loaded from this directory recursively
-- tracks are then grouped by album and by albumartist
-  optimise- cache discovered metadata and track changes with lock file/ hashes
-- select track to play
-- track is moved to front of queue or queue is emptied save track
-  all playback should use the queue as its source of truth
-- metadata displayed in player for current track
-- at completion of track, move to next in queue if exists, then proceed to previous point
+# Acknowledgements
 
-track struct:
-- album
-- track num in album (move to album?)
-- albumartist
-- artist
-- duration
-- lyrics
-
-for queue, vecdeque<pointer_to_track>
-
-acknowledgements:
 - ratatui, as the tui library, and for the documentation provided
 - binsider, as a point of reference for tui impl
 - symphonia & rodio for audio library capabilities
