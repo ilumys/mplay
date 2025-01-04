@@ -1,6 +1,6 @@
 [package]
-name = "fy"
-version = "0.2.0"
+name = "mplay"
+version = "0.0.0"
 description = "Music player"
 publish = false
 edition = "2021"
