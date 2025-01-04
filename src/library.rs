@@ -11,17 +11,29 @@ use crate::artist::{Album, AlbumList, Artist, ArtistList};
 // it would, admittedly, be nice to build artist/album ephemerally
 // schema on read, if you will
 // but in a way, that's what I'm doing here, isn't it?
+
+/// Base unit representing an audio file with accompanying metadata for playback
 #[derive(Clone, Debug, PartialEq)]
 pub struct Track {
+    /// File path
     path: String,
+    /// Track title
     title: String,
+    /// Album track belongs to
     album: String,
+    /// Album artist(s)
     album_artist: String,
+    /// Track artist(s)
     artist: String,
+    /// If embedded lyrics, attached here
     lyrics: String,
+    /// Duration, in seconds, of the track
     duration: f32,
+    /// Track number in the album
     track_num: String,
+    /// Total tracks in the parent album
     track_total: String,
+    /// Date of track release
     date: String,
 }
 
@@ -58,6 +70,8 @@ impl Track {
     }
 }
 
+/// Given a directory, take a vector of resulting Tracks and group them by album and artist
+/// On completion, returns an ArtistList, comprising the grouped tracks
 pub fn build_library(directory: &str) -> ArtistList {
     let mut tracks: Vec<Track> = Vec::new();
     compile_library(directory, &mut tracks);
@@ -104,6 +118,8 @@ pub fn build_library(directory: &str) -> ArtistList {
     return artist_list;
 }
 
+/// Takes a directory and vector of tracks, iteratively scanning through it for all audio files
+/// Once found, audio files are processed into Tracks and added to the input vector
 fn compile_library(path: &str, tracks: &mut Vec<Track>) {
     let mut dirs: Vec<String> = vec![path.to_string()];
     // add a check is_audio_file to avoid scanning everything needlessly
@@ -129,6 +145,8 @@ fn compile_library(path: &str, tracks: &mut Vec<Track>) {
     }
 }
 
+/// Takes a string slice representing path to an audio file as input, then reads the file and
+/// attempts to convert create a representative Track from the audio file
 fn process_track(path: &str) -> Option<Track> {
     let source = Box::new(File::open(path).expect("box file error"));
     let mss = MediaSourceStream::new(source, Default::default());

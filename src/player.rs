@@ -7,20 +7,26 @@ use ratatui::{
 
 use crate::artist::ArtistList;
 
+/// Struct representing the player as a unit
 pub struct Player {
+    /// Whether the player is currently active. False terminates the player
     active: bool,
+    /// List of artists
     artist_list: ArtistList,
     // implement queue
+    // ...
 }
 
 impl Player {
-    // control
+    /// Create a new player from an ArtistList
     pub fn new(artist_list: ArtistList) -> Self {
         Self {
             active: true,
             artist_list,
         }
     }
+    
+    /// Instantiates terminal user interface and continues until termination
     pub fn run(mut self, mut terminal: DefaultTerminal) {
         while self.active {
             terminal
@@ -33,6 +39,8 @@ impl Player {
                 .unwrap();
         }
     }
+    
+    /// Handling for different key presses
     fn handle_key(&mut self, key: KeyEvent) {
         if key.kind != KeyEventKind::Press {
             return;
@@ -53,8 +61,10 @@ impl Player {
         self.artist_list.state.select_previous();
     }
 
-    // rendering
+    /// Render the 'artist' area
     fn render_artist(&mut self, area: Rect, buf: &mut Buffer) {
+        // this is obviously doing a lot for something that gets run constantly
+        // but is it really that hard-hitting on perf for symptons I am seeing?
         let block = Block::bordered().title("artists");
         let artists: Vec<ListItem> = self
             .artist_list
@@ -69,6 +79,7 @@ impl Player {
         StatefulWidget::render(list, area, buf, &mut self.artist_list.state);
     }
 
+    /// Render the 'album' area
     fn render_album(&mut self, area: Rect, buf: &mut Buffer) {
         let block = Block::bordered().title("albums");
         let index = match self.artist_list.state.selected() {
@@ -96,6 +107,7 @@ impl Player {
         );
     }
 
+    /// Render the 'search' area
     fn render_search(area: Rect, buf: &mut Buffer) {
         Paragraph::new("search by artist, album, or track")
             .italic()
@@ -111,7 +123,10 @@ impl Player {
     }
 }
 
+
+/// Defines how the terminal renders 'Player'
 impl Widget for &mut Player {
+    /// implementation ratatui 'render' method
     fn render(self, area: Rect, buf: &mut Buffer)
     where
         Self: Sized,

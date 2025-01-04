@@ -26,6 +26,10 @@ pub struct AlbumList {
     pub state: ListState,
 }
 
+// this is the anchor of track display in the TUI, but it's a bit of a mess
+// artists are duplicated as this is built from the 'artists', not 'album_artist' field
+// consider restructing this so that tracks are grouped by album and album_artist, for artist
+// but even this would not be a fully accurate representation. requires more thought
 #[derive(Clone, Default, PartialEq)]
 pub struct ArtistList {
     pub artists: Vec<Artist>,
