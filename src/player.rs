@@ -1,3 +1,7 @@
+//! Representation and handling for TUI runtime
+//!
+//! Requires calling methods `new` to instantiate, and `run` to execute
+
 use ratatui::{
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
     prelude::*,

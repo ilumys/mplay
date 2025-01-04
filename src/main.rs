@@ -1,3 +1,7 @@
+//! mplay: music player based in the terminal
+//!
+//! Leverages ratatui to draw a terminal user interface and symphonia for audio playback
+
 mod artist;
 mod library;
 mod player;

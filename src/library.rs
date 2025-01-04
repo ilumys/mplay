@@ -1,3 +1,9 @@
+//! Scans for and builds representative tracks for all audio files in a given directory
+//!
+//! Once the initial read is completed, groups tracks by artist and album for representation in TUI
+//!
+//! TODO: cache
+
 use std::{collections::HashMap, fs::File, path::Path};
 
 use symphonia::{

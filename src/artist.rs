@@ -1,3 +1,5 @@
+//! Defines how audio files are represented in mplay, grouping by album and artist
+
 use ratatui::{
     prelude::*,
     widgets::{ListItem, ListState},
