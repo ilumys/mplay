@@ -4,229 +4,297 @@
 //!
 //! TODO: cache
 
-use std::{collections::HashMap, fs::File, path::Path};
+use std::{fs::File, path::Path};
 
 use symphonia::{
-    core::{formats::FormatOptions, io::MediaSourceStream, meta::MetadataOptions, probe::Hint},
+    core::{
+        errors::Error as SymphoniaError, formats::FormatOptions, io::MediaSourceStream,
+        meta::Tag, meta::MetadataOptions, probe::Hint,
+    },
     default::get_probe,
 };
 
-use crate::artist::{Album, AlbumList, Artist, ArtistList};
+// an AudioTrack is either known or unknown
+// if it is known, it SHOULD belong to an album
+// an album has an album_artist; and a track has an artist
+// albums belong to the album_artist
 
-// this is a bit much ... need to clean impl
-// it would, admittedly, be nice to build artist/album ephemerally
-// schema on read, if you will
-// but in a way, that's what I'm doing here, isn't it?
+/// Audio track with extended metadata present
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct FullAudioTrack {
+    path: String,
+    title: String,
+    album: String,
+    album_artist: String,
+    artist: String,
+    track_num: i32,
+    track_total: i32,
+    duration: f64, // calculate on opening the file. remove from here, or preempt?
+    date: String,
+    lyrics: String // visuals ?
+}
+
+/// Audio track with no detected metadata
+#[derive(Clone, Debug, PartialEq)]
+pub struct LimitedAudioTrack {
+    path: String,
+    title: String
+}
 
 /// Base unit representing an audio file with accompanying metadata for playback
+///
+/// Variants:
+///   Full: where extended audio metadata is detected
+///   Limited: where no additional metadata is found
 #[derive(Clone, Debug, PartialEq)]
-pub struct Track {
-    /// File path
-    path: String,
-    /// Track title
-    title: String,
-    /// Album track belongs to
-    album: String,
-    /// Album artist(s)
-    album_artist: String,
-    /// Track artist(s)
-    artist: String,
-    /// If embedded lyrics, attached here
-    lyrics: String,
-    /// Duration, in seconds, of the track
-    duration: f32,
-    /// Track number in the album
-    track_num: String,
-    /// Total tracks in the parent album
-    track_total: String,
-    /// Date of track release
-    date: String,
+pub enum AudioTrack {
+    Full(FullAudioTrack),
+    Limited(LimitedAudioTrack),
 }
 
-impl Track {
-    pub fn path(&self) -> &str {
-        &self.path.as_str()
+impl FullAudioTrack {
+    /// Create a new `FullAudioTrack`
+    fn new(
+        path: String,
+        title: String,
+        album: String,
+        album_artist: String,
+        artist: String,
+        track_num: i32,
+        track_total: i32,
+        duration: f64,
+        date: String,
+        lyrics: String,
+    ) -> Self {
+        Self {
+            path,
+            title,
+            album,
+            album_artist,
+            artist,
+            track_num,
+            track_total,
+            duration,
+            date,
+            lyrics,
+        }
     }
-    pub fn title(&self) -> &str {
-        &self.title.as_str()
+    fn path(&self) -> &str {
+        self.path.as_str()
     }
-    pub fn album(&self) -> &str {
-        &self.album.as_str()
+    fn title(&self) -> &str {
+        self.title.as_str()
     }
-    pub fn album_artist(&self) -> &str {
-        &self.album_artist.as_str()
+    fn album(&self) -> &str {
+        self.album.as_str()
     }
-    pub fn artist(&self) -> &str {
-        &self.artist.as_str()
+    fn album_artist(&self) -> &str {
+        self.album_artist.as_str()
     }
-    pub fn lyrics(&self) -> &str {
-        &self.lyrics.as_str()
+    fn artist(&self) -> &str {
+        self.artist.as_str()
     }
-    pub fn duration(&self) -> f32 {
+    fn track_num(&self) -> i32 {
+        self.track_num
+    }
+    fn track_total(&self) -> i32 {
+        self.track_total
+    }
+    fn duration(&self) -> f64 {
         self.duration
     }
-    pub fn track_num(&self) -> &str {
-        &self.track_num.as_str()
+    fn date(&self) -> &str {
+        self.date.as_str()
     }
-    pub fn track_total(&self) -> &str {
-        &self.track_total.as_str()
+    fn lyrics(&self) -> &str {
+        self.lyrics.as_str()
     }
-    pub fn date(&self) -> &str {
-        &self.date.as_str()
+    fn set_path(&mut self, path: String) {
+        self.path = path;
+    }
+    fn set_title(&mut self, title: String) {
+        self.title = title;
+    }
+    fn set_album(&mut self, album: String) {
+        self.album = album;
+    }
+    fn set_album_artist(&mut self, album_artist: String) {
+        self.album_artist = album_artist
+    }
+    fn set_artist(&mut self, artist: String) {
+        self.artist = artist;
+    }
+    fn set_track_num(&mut self, track_num: i32) {
+        self.track_num = track_num;
+    }
+    fn set_track_total(&mut self, track_total: i32) {
+        self.track_total = track_total;
+    }
+    fn set_duration(&mut self, duration: f64) {
+        self.duration = duration;
+    }
+    fn set_date(&mut self, date: String) {
+        self.date = date;
+    }
+    fn set_lyrics(&mut self, lyrics: String) {
+        self.lyrics = lyrics;
     }
 }
 
-/// Given a directory, take a vector of resulting Tracks and group them by album and artist
-/// On completion, returns an ArtistList, comprising the grouped tracks
-pub fn build_library(directory: &str) -> ArtistList {
-    let mut tracks: Vec<Track> = Vec::new();
-    compile_library(directory, &mut tracks);
-
-    // I can hardly say I like this, but it works
-    let mut artists: HashMap<&str, Vec<Album>> = HashMap::new();
-    let mut album_names: Vec<&str> = Vec::new();
-    for t in tracks.iter() {
-        if !artists.contains_key(t.artist()) {
-            // if artist doesn't exist, neither does this album
-            // unless there's an unaccounted for edge case
-            album_names.push(t.album());
-            artists.insert(
-                t.artist(),
-                vec![Album::new(
-                    t.album(),
-                    t.album_artist(),
-                    t.date(),
-                    t.track_num(),
-                    vec![t.clone()], // hmm
-                )],
-            );
-        } else {
-            if !album_names.contains(&t.album()) {
-                album_names.push(t.album());
-                artists.get_mut(t.artist()).unwrap().push(Album::new(
-                    t.album(),
-                    t.album_artist(),
-                    t.date(),
-                    t.track_num(),
-                    vec![t.clone()],
-                ));
-            }
+impl LimitedAudioTrack {
+    fn new(path: String, title: String) -> Self {
+        Self {
+            path,
+            title
         }
-        // what if track has no tags? add to a default artist
     }
-
-    let mut artist_list: ArtistList = ArtistList::default();
-    for (k, v) in artists.iter() {
-        let albums = AlbumList::from(v);
-        artist_list.add_artist(Artist::new(k, albums));
+    fn path(&self) -> &str {
+        self.path.as_str()
     }
-
-    return artist_list;
+    fn title(&self) -> &str {
+        self.title.as_str()
+    }
 }
 
-/// Takes a directory and vector of tracks, iteratively scanning through it for all audio files
-/// Once found, audio files are processed into Tracks and added to the input vector
-fn compile_library(path: &str, tracks: &mut Vec<Track>) {
-    let mut dirs: Vec<String> = vec![path.to_string()];
-    // add a check is_audio_file to avoid scanning everything needlessly
-    // do I want to rely on ext in file name, or check metadata...
+// consider: split AudioTrack into other file, turn below into method(s) for Library
+// how to group AudioTrack::Known if it has missing tags?
 
-    // too much type conversion going on here, clean it up
+pub struct Library {}
+
+/// Given a directory, take a vector of resulting `AudioTrack`s and group them by album and artist
+/// On completion, returns an `ArtistList`, comprising the grouped tracks
+pub fn build_library(directory: &str) -> Library {
+    let mut tracks: Vec<AudioTrack> = Vec::new();
+
+    let supported_extensions: [&str; 1] = ["flac"];
+
+    // base capacity is arbitrary in size
+    // don't need to optimise too greatly (pay this once), but don't want to spam realloc either
+    let mut dirs: Vec<&Path> = Vec::with_capacity(256);
+    dirs.push(Path::new(directory));
+
+    // iteratively loop through given directory
     loop {
         match dirs.pop() {
-            Some(path_t) => {
-                let path_i = Path::new(path_t.as_str());
-                if path_i.is_dir() {
-                    for path_i in path_i.read_dir().unwrap() {
-                        dirs.push(String::from(path_i.unwrap().path().to_str().unwrap()));
+            Some(path) => {
+                if path.is_dir() {
+                    for entry in path.read_dir().expect("failed to read directory") {
+                        dirs.push(
+                            entry
+                                .expect("failed to push entry to dirs")
+                                .path()
+                                .as_path(),
+                        );
                     }
-                } else if path_i.is_file() {
-                    if let Some(track) = process_track(path_i.to_str().unwrap()) {
-                        tracks.push(track);
+                } else if path.is_file() {
+                    // prefer a more robust solution, but this has advantage of requiring handle
+                    // scenarios to consider:
+                    match path.extension() {
+                        Some(p) => {
+                            if supported_extensions.contains(&p.to_str().expect("ext to str")) {
+                                // load track and check for metadata
+                                match read_audio_file(path) {
+                                    Ok(ok) => tracks.push(ok),
+                                    Err(e) => eprintln!("{e}")
+                                }
+                            }
+                        }
+                        None => continue,
                     }
                 }
             }
             None => break,
         }
     }
+
+    // compile library from vec of tracks
+
+    return;
 }
 
 /// Takes a string slice representing path to an audio file as input, then reads the file and
 /// attempts to convert create a representative Track from the audio file
-fn process_track(path: &str) -> Option<Track> {
+fn read_audio_file(path: &Path) -> std::result::Result<AudioTrack, SymphoniaError> {
     let source = Box::new(File::open(path).expect("box file error"));
     let mss = MediaSourceStream::new(source, Default::default());
 
     let mut hint = Hint::new();
-    hint.with_extension(Path::new(path).extension()?.to_str().expect("hint error"));
+    hint.with_extension(
+        Path::new(path)
+            .extension()
+            .expect("hint extension")
+            .to_str()
+            .expect("hint to str"),
+    );
 
     let meta_opts: MetadataOptions = Default::default();
     let fmt_opts: FormatOptions = Default::default();
 
     let mut probe = match get_probe().format(&hint, mss, &fmt_opts, &meta_opts) {
         Ok(p) => p,
-        Err(_e) => return None,
+        Err(e) => return Err(e),
     };
 
-    // intuitively this can be massively optimised
-    // to start, function, then optimise
-    let mut metadata: [String; 8] = Default::default();
     if let Some(meta) = probe.format.metadata().current() {
         let tags = meta.tags();
         if !tags.is_empty() {
-            for tag in tags.iter().filter(|t| t.is_known()) {
-                if let Some(key) = tag.std_key {
-                    let key = format!("{:?}", key);
-                    match key.as_str() {
-                        "TrackTitle" => metadata[0] = tag.value.to_string(),
-                        "Album" => metadata[1] = tag.value.to_string(),
-                        "AlbumArtist" => metadata[2] = tag.value.to_string(),
-                        "Artist" => metadata[3] = tag.value.to_string(),
-                        "Lyrics" => metadata[4] = tag.value.to_string(),
-                        "TrackNumber" => metadata[5] = tag.value.to_string(),
-                        "TrackTotal" => metadata[6] = tag.value.to_string(),
-                        "Date" => metadata[7] = tag.value.to_string(),
-                        _ => {}
-                    }
-                }
-            }
+            Ok(AudioTrack::Full(build_track_with_metadata(path, tags)))
+        } else {
+            todo!("fallback to unknown track");
         }
     } else if let Some(meta) = probe.metadata.get().as_ref().and_then(|m| m.current()) {
         let tags = meta.tags();
         if !tags.is_empty() {
-            for tag in tags.iter().filter(|t| t.is_known()) {
-                if let Some(key) = tag.std_key {
-                    let key = format!("{:?}", key);
-                    match key.as_str() {
-                        "TrackTitle" => metadata[0] = tag.value.to_string(),
-                        "Album" => metadata[1] = tag.value.to_string(),
-                        "AlbumArtist" => metadata[2] = tag.value.to_string(),
-                        "Artist" => metadata[3] = tag.value.to_string(),
-                        "Lyrics" => metadata[4] = tag.value.to_string(),
-                        "TrackNumber" => metadata[5] = tag.value.to_string(),
-                        "TrackTotal" => metadata[6] = tag.value.to_string(),
-                        "Date" => metadata[7] = tag.value.to_string(),
-                        _ => {}
-                    }
+            Ok(AudioTrack::Full(build_track_with_metadata(path, tags)))
+        } else {
+            todo!("fallback to unknown track");
+        }
+    } else {
+        todo!("unknown track");
+    }
+}
+
+fn build_track_with_metadata(path: &Path, metadata: &[Tag]) -> FullAudioTrack {
+    let mut track: FullAudioTrack = Default::default();
+
+    track.set_path(path.to_string_lossy().into_owned());
+    
+    for tag in metadata.iter().filter(|t| t.is_known()) {
+        if let Some(key) = tag.std_key {
+            let key = format!("{:?}", key);
+            match key.as_str() {
+                "TrackTitle" => {
+                    track.set_title(tag.value.to_string());
+                },
+                "Album" => {
+                    track.set_album(tag.value.to_string());
                 }
+                "AlbumArtist" => {
+                    track.set_album_artist(tag.value.to_string());
+                }
+                "Artist" => {
+                    track.set_artist(tag.value.to_string());
+                }
+                "TrackNumber" => {
+                    track.set_track_num(tag.value.to_string().parse::<i32>().expect("i32 parse track_num"));
+                }
+                "TrackTotal" => {
+                    track.set_track_total(tag.value.to_string().parse::<i32>().expect("i32 parse track_total"));
+                }
+                "Date" => {
+                    track.set_date(tag.value.to_string());
+                }
+                "Lyrics" => {
+                    track.set_lyrics(tag.value.to_string());
+                }
+                _ => ()
             }
         }
     }
-
-    // is to_owned optimal or could this be improved?
-    return Some(Track {
-        path: path.to_string(),
-        title: metadata[0].to_owned(),
-        album: metadata[1].to_owned(),
-        album_artist: metadata[2].to_owned(),
-        artist: metadata[3].to_owned(),
-        lyrics: metadata[4].to_owned(),
-        duration: 0.0, // todo: set this proper
-        track_num: metadata[5].to_owned(),
-        track_total: metadata[6].to_owned(),
-        date: metadata[7].to_owned(),
-    });
+    track
 }
+
+//fn build_track_without_metadata() -> LimitedAudioTrack {}
 
 fn _check_cache() {
     todo!("check if cache lock has changed. if yes, reload, else load");
