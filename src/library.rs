@@ -178,6 +178,7 @@ pub fn build_library(directory: &str) -> Library {
         match dirs.pop() {
             Some(path) => {
                 if path.is_dir() {
+                    // todo: on error, write to stderr and continue
                     for entry in path.read_dir().expect("failed to read directory") {
                         dirs.push(
                             entry
@@ -195,7 +196,7 @@ pub fn build_library(directory: &str) -> Library {
                                 // load track and check for metadata
                                 match read_audio_file(path) {
                                     Ok(ok) => tracks.push(ok),
-                                    Err(e) => eprintln!("{e}")
+                                    Err(e) => eprintln!("{e}") // ignore and continue
                                 }
                             }
                         }
@@ -240,17 +241,17 @@ fn read_audio_file(path: &Path) -> std::result::Result<AudioTrack, SymphoniaErro
         if !tags.is_empty() {
             Ok(AudioTrack::Full(build_track_with_metadata(path, tags)))
         } else {
-            todo!("fallback to unknown track");
+            Ok(AudioTrack::Limited(build_track_without_metadata(path)))
         }
     } else if let Some(meta) = probe.metadata.get().as_ref().and_then(|m| m.current()) {
         let tags = meta.tags();
         if !tags.is_empty() {
             Ok(AudioTrack::Full(build_track_with_metadata(path, tags)))
         } else {
-            todo!("fallback to unknown track");
+            Ok(AudioTrack::Limited(build_track_without_metadata(path)))
         }
     } else {
-        todo!("unknown track");
+        Ok(AudioTrack::Limited(build_track_without_metadata(path)))
     }
 }
 
@@ -276,10 +277,16 @@ fn build_track_with_metadata(path: &Path, metadata: &[Tag]) -> FullAudioTrack {
                     track.set_artist(tag.value.to_string());
                 }
                 "TrackNumber" => {
-                    track.set_track_num(tag.value.to_string().parse::<i32>().expect("i32 parse track_num"));
+                    match tag.value.to_string().parse::<i32>() {
+                        Ok(i) => track.set_track_num(i),
+                        Err(e) => eprintln!("failed track build: {e}")
+                    }
                 }
                 "TrackTotal" => {
-                    track.set_track_total(tag.value.to_string().parse::<i32>().expect("i32 parse track_total"));
+                    match tag.value.to_string().parse::<i32>() {
+                        Ok(i) => track.set_track_total(i),
+                        Err(e) => eprintln!("failed track build: {e}")
+                    }
                 }
                 "Date" => {
                     track.set_date(tag.value.to_string());
@@ -294,7 +301,12 @@ fn build_track_with_metadata(path: &Path, metadata: &[Tag]) -> FullAudioTrack {
     track
 }
 
-//fn build_track_without_metadata() -> LimitedAudioTrack {}
+fn build_track_without_metadata(path: &Path) -> LimitedAudioTrack {
+    LimitedAudioTrack::new(
+        path.to_string_lossy().into_owned(),
+        path.file_name().expect("filename from path").to_string_lossy().into_owned()
+    )
+}
 
 fn _check_cache() {
     todo!("check if cache lock has changed. if yes, reload, else load");
