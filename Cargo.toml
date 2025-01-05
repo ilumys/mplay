@@ -8,6 +8,6 @@ edition = "2021"
 [dependencies]
 symphonia = "0.5.4"
 rodio = { version = "0.19.0", default-features = false, features = [
-    "symphonia-all",
+    "symphonia-flac",
 ] }
 ratatui = "0.29.0" # my deps ;(
