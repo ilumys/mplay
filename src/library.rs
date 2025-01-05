@@ -52,110 +52,6 @@ pub enum AudioTrack {
     Limited(LimitedAudioTrack),
 }
 
-impl FullAudioTrack {
-    /// Create a new `FullAudioTrack`
-    fn new(
-        path: String,
-        title: String,
-        album: String,
-        album_artist: String,
-        artist: String,
-        track_num: i32,
-        track_total: i32,
-        duration: f64,
-        date: String,
-        lyrics: String,
-    ) -> Self {
-        Self {
-            path,
-            title,
-            album,
-            album_artist,
-            artist,
-            track_num,
-            track_total,
-            duration,
-            date,
-            lyrics,
-        }
-    }
-    fn path(&self) -> &str {
-        self.path.as_str()
-    }
-    fn title(&self) -> &str {
-        self.title.as_str()
-    }
-    fn album(&self) -> &str {
-        self.album.as_str()
-    }
-    fn album_artist(&self) -> &str {
-        self.album_artist.as_str()
-    }
-    fn artist(&self) -> &str {
-        self.artist.as_str()
-    }
-    fn track_num(&self) -> i32 {
-        self.track_num
-    }
-    fn track_total(&self) -> i32 {
-        self.track_total
-    }
-    fn duration(&self) -> f64 {
-        self.duration
-    }
-    fn date(&self) -> &str {
-        self.date.as_str()
-    }
-    fn lyrics(&self) -> &str {
-        self.lyrics.as_str()
-    }
-    fn set_path(&mut self, path: String) {
-        self.path = path;
-    }
-    fn set_title(&mut self, title: String) {
-        self.title = title;
-    }
-    fn set_album(&mut self, album: String) {
-        self.album = album;
-    }
-    fn set_album_artist(&mut self, album_artist: String) {
-        self.album_artist = album_artist
-    }
-    fn set_artist(&mut self, artist: String) {
-        self.artist = artist;
-    }
-    fn set_track_num(&mut self, track_num: i32) {
-        self.track_num = track_num;
-    }
-    fn set_track_total(&mut self, track_total: i32) {
-        self.track_total = track_total;
-    }
-    fn set_duration(&mut self, duration: f64) {
-        self.duration = duration;
-    }
-    fn set_date(&mut self, date: String) {
-        self.date = date;
-    }
-    fn set_lyrics(&mut self, lyrics: String) {
-        self.lyrics = lyrics;
-    }
-}
-
-impl LimitedAudioTrack {
-    fn new(path: String, title: String) -> Self {
-        Self {
-            path,
-            title
-        }
-    }
-    fn path(&self) -> &str {
-        self.path.as_str()
-    }
-    fn title(&self) -> &str {
-        self.title.as_str()
-    }
-}
-
 // consider: split AudioTrack into other file, turn below into method(s) for Library
 // how to group AudioTrack::Known if it has missing tags?
 
@@ -258,41 +154,41 @@ fn read_audio_file(path: &Path) -> std::result::Result<AudioTrack, SymphoniaErro
 fn build_track_with_metadata(path: &Path, metadata: &[Tag]) -> FullAudioTrack {
     let mut track: FullAudioTrack = Default::default();
 
-    track.set_path(path.to_string_lossy().into_owned());
+    track.path = path.to_string_lossy().into_owned();
     
     for tag in metadata.iter().filter(|t| t.is_known()) {
         if let Some(key) = tag.std_key {
             let key = format!("{:?}", key);
             match key.as_str() {
                 "TrackTitle" => {
-                    track.set_title(tag.value.to_string());
+                    track.title = tag.value.to_string();
                 },
                 "Album" => {
-                    track.set_album(tag.value.to_string());
+                    track.album = tag.value.to_string();
                 }
                 "AlbumArtist" => {
-                    track.set_album_artist(tag.value.to_string());
+                    track.album_artist = tag.value.to_string();
                 }
                 "Artist" => {
-                    track.set_artist(tag.value.to_string());
+                    track.artist = tag.value.to_string();
                 }
                 "TrackNumber" => {
                     match tag.value.to_string().parse::<i32>() {
-                        Ok(i) => track.set_track_num(i),
+                        Ok(i) => track.track_num = i,
                         Err(e) => eprintln!("failed track build: {e}")
                     }
                 }
                 "TrackTotal" => {
                     match tag.value.to_string().parse::<i32>() {
-                        Ok(i) => track.set_track_total(i),
+                        Ok(i) => track.track_total = i,
                         Err(e) => eprintln!("failed track build: {e}")
                     }
                 }
                 "Date" => {
-                    track.set_date(tag.value.to_string());
+                    track.date = tag.value.to_string();
                 }
                 "Lyrics" => {
-                    track.set_lyrics(tag.value.to_string());
+                    track.lyrics = tag.value.to_string();
                 }
                 _ => ()
             }
@@ -302,10 +198,10 @@ fn build_track_with_metadata(path: &Path, metadata: &[Tag]) -> FullAudioTrack {
 }
 
 fn build_track_without_metadata(path: &Path) -> LimitedAudioTrack {
-    LimitedAudioTrack::new(
-        path.to_string_lossy().into_owned(),
-        path.file_name().expect("filename from path").to_string_lossy().into_owned()
-    )
+    LimitedAudioTrack {
+        path: path.to_string_lossy().into_owned(),
+        title: path.file_name().expect("filename from path").to_string_lossy().into_owned()
+    }
 }
 
 fn _check_cache() {
