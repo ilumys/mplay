@@ -4,7 +4,7 @@
 //!
 //! TODO: cache
 
-use std::{fs::File, path::Path};
+use std::{collections::HashMap, fs::File, path::{Path, PathBuf}};
 
 use symphonia::{
     core::{
@@ -52,47 +52,51 @@ pub enum AudioTrack {
     Limited(LimitedAudioTrack),
 }
 
-// consider: split AudioTrack into other file, turn below into method(s) for Library
-// how to group AudioTrack::Known if it has missing tags?
+#[non_exhaustive]
+struct Album {
+    name: String,
+    artist: String,
+    tracks: Vec<AudioTrack>
+    // num tracks? date rel?
+}
 
-pub struct Library {}
+type ArtistCollection = HashMap<String, Vec<Album>>;
 
 /// Given a directory, take a vector of resulting `AudioTrack`s and group them by album and artist
 /// On completion, returns an `ArtistList`, comprising the grouped tracks
-pub fn build_library(directory: &str) -> Library {
+pub fn build_library(directory: PathBuf) -> ArtistCollection {
     let mut tracks: Vec<AudioTrack> = Vec::new();
 
     let supported_extensions: [&str; 1] = ["flac"];
 
     // base capacity is arbitrary in size
     // don't need to optimise too greatly (pay this once), but don't want to spam realloc either
-    let mut dirs: Vec<&Path> = Vec::with_capacity(256);
-    dirs.push(Path::new(directory));
+    let mut dirs: Vec<PathBuf> = Vec::with_capacity(256);
+    dirs.push(directory);
 
     // iteratively loop through given directory
+    // if item is directory, iterate over its children, pushing all to vec
+    // if item is file, check extension is supported then pass off to build track
     loop {
         match dirs.pop() {
             Some(path) => {
                 if path.is_dir() {
-                    // todo: on error, write to stderr and continue
-                    for entry in path.read_dir().expect("failed to read directory") {
-                        dirs.push(
-                            entry
-                                .expect("failed to push entry to dirs")
-                                .path()
-                                .as_path(),
-                        );
+                    for entry in path.read_dir().unwrap() {
+                        match entry {
+                            Ok(i) => {
+                                dirs.push(i.path());
+                            }
+                            Err(e) => eprintln!("{e}")
+                        }
                     }
                 } else if path.is_file() {
                     // prefer a more robust solution, but this has advantage of requiring handle
-                    // scenarios to consider:
                     match path.extension() {
                         Some(p) => {
                             if supported_extensions.contains(&p.to_str().expect("ext to str")) {
-                                // load track and check for metadata
-                                match read_audio_file(path) {
+                                match read_audio_file(path.as_path()) {
                                     Ok(ok) => tracks.push(ok),
-                                    Err(e) => eprintln!("{e}") // ignore and continue
+                                    Err(e) => eprintln!("{e}")
                                 }
                             }
                         }
@@ -105,8 +109,79 @@ pub fn build_library(directory: &str) -> Library {
     }
 
     // compile library from vec of tracks
+    let mut artistc: ArtistCollection = HashMap::with_capacity(128);
+    
+    for trk in tracks.iter() {
+        // below does not perform explicit handling for absent metadata
+        // e.g., no album_artist tag on file, thus it is left blank, and so is the entry here
+        // it is preferable that this case is handled. todo
+        match trk {
+            AudioTrack::Full(i_t) => {
+                // entry instead? but it consumes string. shouldn't be a problem but is
+                // todo: review hash_map source to determine material difference
+                match artistc.get_mut(&i_t.album_artist) {
+                    Some(i_aa) => {
+                        // check for album
+                        match i_aa.into_iter().find(|a| a.name == i_t.album) {
+                            Some(i_a) => {
+                                i_a.tracks.push(AudioTrack::Full(i_t.clone())); // todo: investigate safe move instead of clone
+                            }
+                            None => {
+                                // the artist exists, but not this album
+                                // push new album to vec with track
+                                i_aa.push(
+                                    Album {
+                                        name: String::from(&i_t.album),
+                                        artist: String::from(&i_t.album_artist),
+                                        tracks: vec![AudioTrack::Full(i_t.clone())]
+                                    }
+                                );
+                            }
+                        }
+                    },
+                    None => {
+                        // no entry for album_artist
+                        // push new to vec and initialise album
+                        artistc.insert(
+                            String::from(&i_t.album_artist),
+                            vec![Album {
+                                name: String::from(&i_t.album),
+                                artist: String::from(&i_t.artist),
+                                tracks: vec![AudioTrack::Full(i_t.clone())]
+                            }]
+                        );
+                    }
+                }
+            }
+            AudioTrack::Limited(i_t) => {
+                // search for default entry
+                // if absent, create
+                match artistc.get_mut("no_artist") {
+                    Some(i_aa) => {
+                        // if we hit this, we know the default album exists as well
+                        match i_aa.first_mut() {
+                            // push(AudioTrack::Limited(i_t.clone())),
+                            Some(i_a) => i_a.tracks.push(AudioTrack::Limited(i_t.clone())),
+                            None => unreachable!("no_artist exists with no album") // prefer assert or handle
+                        }
+                    }
+                    None => {
+                        // initialise default 'no_artist' entry
+                        artistc.insert(
+                            String::from("no_artist"),
+                            vec![Album {
+                                name: String::from("default"),
+                                artist: String::from("no_artist"),
+                                tracks: vec![AudioTrack::Limited(i_t.clone())]
+                            }]
+                        );
+                    }
+                }
+            }
+        }
+    }
 
-    return;
+    artistc
 }
 
 /// Takes a string slice representing path to an audio file as input, then reads the file and
