@@ -4,20 +4,28 @@
 //!
 //! TODO: cache
 
-use std::{collections::HashMap, fs::File, path::{Path, PathBuf}};
+use std::{
+    collections::HashMap,
+    fs::File,
+    path::{Path, PathBuf}
+};
 
 use symphonia::{
     core::{
         errors::Error as SymphoniaError, formats::FormatOptions, io::MediaSourceStream,
-        meta::Tag, meta::MetadataOptions, probe::Hint,
+        meta::MetadataOptions, meta::Tag, probe::Hint
     },
-    default::get_probe,
+    default::get_probe
 };
 
 // an AudioTrack is either known or unknown
 // if it is known, it SHOULD belong to an album
 // an album has an album_artist; and a track has an artist
 // albums belong to the album_artist
+
+// TODO: change means of binding to artist and album to ref counting
+// all grouping and rendering of tracks by album and artist are merely
+// a view presented in the ui - underlying data is only (un)tagged tracks
 
 /// Audio track with extended metadata present
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -49,18 +57,8 @@ pub struct LimitedAudioTrack {
 #[derive(Clone, Debug, PartialEq)]
 pub enum AudioTrack {
     Full(FullAudioTrack),
-    Limited(LimitedAudioTrack),
+    Limited(LimitedAudioTrack)
 }
-
-#[non_exhaustive]
-struct Album {
-    name: String,
-    artist: String,
-    tracks: Vec<AudioTrack>
-    // num tracks? date rel?
-}
-
-type ArtistCollection = HashMap<String, Vec<Album>>;
 
 /// Given a directory, take a vector of resulting `AudioTrack`s and group them by album and artist
 /// On completion, returns an `ArtistList`, comprising the grouped tracks
@@ -100,18 +98,19 @@ pub fn build_library(directory: PathBuf) -> ArtistCollection {
                                 }
                             }
                         }
-                        None => continue,
+                        None => continue
                     }
                 }
             }
-            None => break,
+            None => break
         }
     }
 
     // compile library from vec of tracks
+    // consider: skip this, directly generating a tui List
     let mut artistc: ArtistCollection = HashMap::with_capacity(128);
-    
-    for trk in tracks.iter() {
+
+    for trk in tracks.into_iter() {
         // below does not perform explicit handling for absent metadata
         // e.g., no album_artist tag on file, thus it is left blank, and so is the entry here
         // it is preferable that this case is handled. todo
@@ -119,26 +118,25 @@ pub fn build_library(directory: PathBuf) -> ArtistCollection {
             AudioTrack::Full(i_t) => {
                 // entry instead? but it consumes string. shouldn't be a problem but is
                 // todo: review hash_map source to determine material difference
+                // seems source is hard coded into the compiler...
                 match artistc.get_mut(&i_t.album_artist) {
                     Some(i_aa) => {
                         // check for album
                         match i_aa.into_iter().find(|a| a.name == i_t.album) {
                             Some(i_a) => {
-                                i_a.tracks.push(AudioTrack::Full(i_t.clone())); // todo: investigate safe move instead of clone
+                                i_a.tracks.push(AudioTrack::Full(i_t));
                             }
                             None => {
                                 // the artist exists, but not this album
                                 // push new album to vec with track
-                                i_aa.push(
-                                    Album {
-                                        name: String::from(&i_t.album),
-                                        artist: String::from(&i_t.album_artist),
-                                        tracks: vec![AudioTrack::Full(i_t.clone())]
-                                    }
-                                );
+                                i_aa.push(Album {
+                                    name: String::from(&i_t.album),
+                                    artist: String::from(&i_t.album_artist),
+                                    tracks: vec![AudioTrack::Full(i_t)]
+                                });
                             }
                         }
-                    },
+                    }
                     None => {
                         // no entry for album_artist
                         // push new to vec and initialise album
@@ -147,7 +145,7 @@ pub fn build_library(directory: PathBuf) -> ArtistCollection {
                             vec![Album {
                                 name: String::from(&i_t.album),
                                 artist: String::from(&i_t.artist),
-                                tracks: vec![AudioTrack::Full(i_t.clone())]
+                                tracks: vec![AudioTrack::Full(i_t)]
                             }]
                         );
                     }
@@ -161,7 +159,7 @@ pub fn build_library(directory: PathBuf) -> ArtistCollection {
                         // if we hit this, we know the default album exists as well
                         match i_aa.first_mut() {
                             // push(AudioTrack::Limited(i_t.clone())),
-                            Some(i_a) => i_a.tracks.push(AudioTrack::Limited(i_t.clone())),
+                            Some(i_a) => i_a.tracks.push(AudioTrack::Limited(i_t)),
                             None => unreachable!("no_artist exists with no album") // prefer assert or handle
                         }
                     }
@@ -172,7 +170,7 @@ pub fn build_library(directory: PathBuf) -> ArtistCollection {
                             vec![Album {
                                 name: String::from("default"),
                                 artist: String::from("no_artist"),
-                                tracks: vec![AudioTrack::Limited(i_t.clone())]
+                                tracks: vec![AudioTrack::Limited(i_t)]
                             }]
                         );
                     }
@@ -196,7 +194,7 @@ fn read_audio_file(path: &Path) -> std::result::Result<AudioTrack, SymphoniaErro
             .extension()
             .expect("hint extension")
             .to_str()
-            .expect("hint to str"),
+            .expect("hint to str")
     );
 
     let meta_opts: MetadataOptions = Default::default();
@@ -204,7 +202,7 @@ fn read_audio_file(path: &Path) -> std::result::Result<AudioTrack, SymphoniaErro
 
     let mut probe = match get_probe().format(&hint, mss, &fmt_opts, &meta_opts) {
         Ok(p) => p,
-        Err(e) => return Err(e),
+        Err(e) => return Err(e)
     };
 
     if let Some(meta) = probe.format.metadata().current() {
@@ -230,14 +228,14 @@ fn build_track_with_metadata(path: &Path, metadata: &[Tag]) -> FullAudioTrack {
     let mut track: FullAudioTrack = Default::default();
 
     track.path = path.to_string_lossy().into_owned();
-    
+
     for tag in metadata.iter().filter(|t| t.is_known()) {
         if let Some(key) = tag.std_key {
             let key = format!("{:?}", key);
             match key.as_str() {
                 "TrackTitle" => {
                     track.title = tag.value.to_string();
-                },
+                }
                 "Album" => {
                     track.album = tag.value.to_string();
                 }
@@ -247,18 +245,14 @@ fn build_track_with_metadata(path: &Path, metadata: &[Tag]) -> FullAudioTrack {
                 "Artist" => {
                     track.artist = tag.value.to_string();
                 }
-                "TrackNumber" => {
-                    match tag.value.to_string().parse::<i32>() {
-                        Ok(i) => track.track_num = i,
-                        Err(e) => eprintln!("failed track build: {e}")
-                    }
-                }
-                "TrackTotal" => {
-                    match tag.value.to_string().parse::<i32>() {
-                        Ok(i) => track.track_total = i,
-                        Err(e) => eprintln!("failed track build: {e}")
-                    }
-                }
+                "TrackNumber" => match tag.value.to_string().parse::<i32>() {
+                    Ok(i) => track.track_num = i,
+                    Err(e) => eprintln!("failed track build: {e}")
+                },
+                "TrackTotal" => match tag.value.to_string().parse::<i32>() {
+                    Ok(i) => track.track_total = i,
+                    Err(e) => eprintln!("failed track build: {e}")
+                },
                 "Date" => {
                     track.date = tag.value.to_string();
                 }
@@ -275,7 +269,11 @@ fn build_track_with_metadata(path: &Path, metadata: &[Tag]) -> FullAudioTrack {
 fn build_track_without_metadata(path: &Path) -> LimitedAudioTrack {
     LimitedAudioTrack {
         path: path.to_string_lossy().into_owned(),
-        title: path.file_name().expect("filename from path").to_string_lossy().into_owned()
+        title: path
+            .file_name()
+            .expect("filename from path")
+            .to_string_lossy()
+            .into_owned()
     }
 }
 

@@ -4,9 +4,10 @@
 
 use std::path::PathBuf;
 
-mod artist;
 mod library;
 mod player;
+mod ui;
+mod state;
 
 fn main() {
     let music_dir = format!("{}/Music/", env!("HOME"));
@@ -16,7 +17,7 @@ fn main() {
     let terminal = ratatui::init();
 
     // strong want to optimise player
-    let player = player::Player::new(library);
+    let player = player::Player::from(library);
     player.run(terminal);
     ratatui::restore();
 }
