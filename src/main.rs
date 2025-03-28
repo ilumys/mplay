@@ -4,12 +4,13 @@
 
 use std::path::PathBuf;
 
+use ui::UserInterface;
+
 mod library;
-mod player;
 mod ui;
-mod state;
 
 fn main() {
+    // todo: config file
     let music_dir = format!("{}/Music/", env!("HOME"));
     // todo: lazy load library
     // start display with only artists to allow more time/space to load all
@@ -17,7 +18,6 @@ fn main() {
     let terminal = ratatui::init();
 
     // strong want to optimise player
-    let player = player::Player::from(library);
-    player.run(terminal);
+    UserInterface::new(library).run(terminal);
     ratatui::restore();
 }
