@@ -40,7 +40,7 @@ use symphonia::{
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct FullAudioTrack {
     // four `String`s, and two references: 24x4=96 + 8x2=16 = 112 bytes
-    path: String,
+    pub path: String,
     pub title: String,
     // album: &Album,
     // artist: &Artist,
@@ -52,7 +52,7 @@ pub struct FullAudioTrack {
 #[derive(Clone, Debug, PartialEq)]
 pub struct LimitedAudioTrack {
     // 56 bytes
-    path: String,
+    pub path: String,
     pub title: String,
 }
 

@@ -14,7 +14,8 @@ use ratatui::{
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
     layout::{Constraint, Layout, Rect},
     prelude::Stylize,
-    widgets::{Block, List, ListItem, Paragraph},
+    style::{Modifier, Style},
+    widgets::{Block, Cell, List, ListItem, Paragraph, Row, Table},
 };
 
 use crate::library::{AudioTrack, TrackList};
@@ -73,6 +74,8 @@ impl UserInterface {
     }
 
     fn handle_key(&mut self, key: KeyEvent) {
+        // `key.kind` not always set. keep an eye out for events failing at this step
+        // unlikely to occur for me, given kb/os used
         if key.kind != KeyEventKind::Press {
             return;
         }
@@ -91,18 +94,27 @@ impl UserInterface {
     fn render_all_tracks(&mut self, area: Rect, frame: &mut Frame) {
         let block = Block::bordered().title("tracks");
 
-        let track_list: Vec<ListItem> = self
+        let rows: Vec<Row> = self
             .tracks
             .iter()
             .map(|i| match i {
-                AudioTrack::Full(x) => ListItem::from(x.title.clone()),
-                AudioTrack::Limited(x) => ListItem::from(x.title.clone()),
+                AudioTrack::Full(x) => {
+                    return Row::new([Cell::from(x.title.clone()), Cell::from(x.path.clone())]);
+                }
+                AudioTrack::Limited(x) => {
+                    return Row::new([Cell::from(x.title.clone()), Cell::from(x.path.clone())]);
+                }
             })
             .collect();
 
-        let track_list = List::new(track_list).block(block).highlight_symbol(">");
+        let tbl = Table::new(
+            rows,
+            [Constraint::Percentage(50), Constraint::Percentage(50)],
+        )
+        .block(block)
+        .row_highlight_style(Style::new().add_modifier(Modifier::REVERSED));
 
-        frame.render_stateful_widget(track_list, area, &mut self.state.all_tracks);
+        frame.render_stateful_widget(tbl, area, &mut self.state.all_tracks);
     }
 
     fn render_status(&mut self, area: Rect, buf: &mut Buffer) {
