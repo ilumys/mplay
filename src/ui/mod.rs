@@ -6,19 +6,19 @@
 // artist: display all artists, selecing provides view of their albums and tracks
 // album: display all albums, selecting provides view of their tracks
 
-use std::time::Duration;
+use std::{fs::File, io::BufReader, time::Duration};
 
 use ratatui::{
     DefaultTerminal, Frame,
-    buffer::Buffer,
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
     layout::{Constraint, Layout, Rect},
     prelude::Stylize,
     style::{Modifier, Style},
-    widgets::{Block, Cell, List, ListItem, Paragraph, Row, Table},
+    widgets::{Block, Cell, Paragraph, Row, Table},
 };
+use rodio::Decoder;
 
-use crate::library::{AudioTrack, TrackList};
+use crate::library::{AudioTrack, Player, TrackList};
 
 mod state;
 
@@ -26,6 +26,7 @@ use state::State;
 
 pub struct UserInterface {
     active: bool,
+    player: Player,
     state: state::State,
     tracks: TrackList,
 }
@@ -34,6 +35,7 @@ impl UserInterface {
     pub fn new(track_list: TrackList) -> Self {
         UserInterface {
             active: true,
+            player: Player::new(),
             state: State::new(),
             tracks: track_list,
         }
@@ -83,13 +85,24 @@ impl UserInterface {
             KeyCode::Esc | event::KeyCode::Char('q') => self.active = false,
             KeyCode::Down => self.state.all_tracks.select_next(),
             KeyCode::Up => self.state.all_tracks.select_previous(),
+            KeyCode::Enter => {
+                let path = match self.state.all_tracks.selected() {
+                    Some(i) => match &self.tracks[i] {
+                        AudioTrack::Full(a) => &a.path,
+                        AudioTrack::Limited(a) => &a.path,
+                    },
+                    None => unreachable!(), // index out of bounds
+                };
+                self.player.append(path);
+            }
+            KeyCode::Char(' ') => self.player.toggle_pause(),
             _ => (),
         }
     }
 
-    fn render_search(&mut self, area: Rect, buf: &mut Buffer) {
-        todo!("render stateful search, accepting user input");
-    }
+    // fn render_search(&mut self, area: Rect, buf: &mut Buffer) {
+    //     todo!("render stateful search, accepting user input");
+    // }
 
     fn render_all_tracks(&mut self, area: Rect, frame: &mut Frame) {
         let block = Block::bordered().title("tracks");
@@ -97,7 +110,7 @@ impl UserInterface {
         let rows: Vec<Row> = self
             .tracks
             .iter()
-            .map(|i| match i {
+            .map(|v| match v {
                 AudioTrack::Full(x) => {
                     return Row::new([Cell::from(x.title.clone()), Cell::from(x.path.clone())]);
                 }
@@ -117,7 +130,7 @@ impl UserInterface {
         frame.render_stateful_widget(tbl, area, &mut self.state.all_tracks);
     }
 
-    fn render_status(&mut self, area: Rect, buf: &mut Buffer) {
-        todo!("render status of currently playing track");
-    }
+    // fn render_status(&mut self, area: Rect, buf: &mut Buffer) {
+    //     todo!("render status of currently playing track");
+    // }
 }

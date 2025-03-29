@@ -18,6 +18,10 @@ use symphonia::{
     default::get_probe,
 };
 
+mod player;
+
+pub(crate) use player::Player;
+
 // struct Album {
 //     artist: String,
 //     name: String,
