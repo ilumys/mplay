@@ -10,6 +10,7 @@ pub struct Player {
 
 impl Player {
     pub fn new() -> Self {
+        // wrap in result and propagate
         let (stream, stream_handle) = OutputStream::try_default().expect("output stream init");
         let sink = Sink::try_new(&stream_handle).expect("sink init");
 

@@ -1,0 +1,5 @@
+# presently, ratatui errors when building musl
+# for now specify other target to avoid build errors
+# subsequent todo: investigate errors
+[build]
+target = "x86_64-unknown-linux-gnu"

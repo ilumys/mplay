@@ -6,7 +6,7 @@
 // artist: display all artists, selecing provides view of their albums and tracks
 // album: display all albums, selecting provides view of their tracks
 
-use std::{fs::File, io::BufReader, time::Duration};
+use std::time::Duration;
 
 use ratatui::{
     DefaultTerminal, Frame,
@@ -16,7 +16,6 @@ use ratatui::{
     style::{Modifier, Style},
     widgets::{Block, Cell, Paragraph, Row, Table},
 };
-use rodio::Decoder;
 
 use crate::library::{AudioTrack, Player, TrackList};
 
