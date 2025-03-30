@@ -22,61 +22,78 @@ mod player;
 
 pub(crate) use player::Player;
 
-// struct Album {
-//     artist: String,
-//     name: String,
-//     num_tracks: i32,
-//     tracks: Vec<&AudioTrack>
-//       identifier for track number
-// }
-
-// struct Artist {
-//     name: String,
-//     albums: Vec<Album>,
-//     tracks: Vec<&AudioTrack>
-// }
-
 /// Audio track with extended metadata present
-///
-/// An AudioTrack is either known or unknown, and this is determined by the presence of metadata in the audio file
-/// If it is known, it SHOULD belong to an album, and it SHOULD have an artist
-/// If it is unknown, then it will only store enough data to identify and locate it
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Default)]
 pub struct FullAudioTrack {
-    // four `String`s, and two references: 24x4=96 + 8x2=16 = 112 bytes
+    /// File path
     pub path: String,
+    /// Track title
     pub title: String,
     // album: &Album,
     // artist: &Artist,
+    /// Date of track release
     date: String,
+    /// Track lyrics
     lyrics: String, // add visuals ?
+                    // duration
+                    // track num ?
 }
 
 /// Audio track with no detected metadata
-#[derive(Clone, Debug, PartialEq)]
 pub struct LimitedAudioTrack {
-    // 56 bytes
+    /// File path
     pub path: String,
+    /// Track title, assumed from the file name
     pub title: String,
 }
 
 /// Base unit representing an audio file with accompanying metadata for playback
+/// Each instance is 113 bytes and 8-byte aligned
 ///
 /// Variants:
-///   Full: where extended audio metadata is detected
-///   Limited: where no additional metadata is found
-#[derive(Clone, Debug, PartialEq)]
+/// - Full: where extended audio metadata is detected
+/// - Limited: where no additional metadata is found
 pub enum AudioTrack {
-    Full(FullAudioTrack),
+    Extended(FullAudioTrack),
     Limited(LimitedAudioTrack),
 }
 
-pub type TrackList = Vec<AudioTrack>;
+impl AudioTrack {
+    fn new_full(path: &Path, metadata: &[Tag]) -> Self {
+        let mut track: FullAudioTrack = Default::default();
+
+        track.path = path.to_string_lossy().into_owned();
+
+        for tag in metadata.iter().filter(|t| t.is_known()) {
+            if let Some(key) = tag.std_key {
+                let key = format!("{:?}", key);
+                match key.as_str() {
+                    "TrackTitle" => track.title = tag.value.to_string(),
+                    "Date" => track.date = tag.value.to_string(),
+                    "Lyrics" => track.lyrics = tag.value.to_string(),
+                    _ => (),
+                }
+            }
+        }
+        AudioTrack::Extended(track)
+    }
+
+    fn new_limited(path: &Path) -> Self {
+        AudioTrack::Limited(LimitedAudioTrack {
+            path: path.to_string_lossy().into_owned(),
+            title: path
+                .file_name()
+                .expect("failed to extract filename from path")
+                .to_string_lossy()
+                .into_owned(),
+        })
+    }
+}
 
 /// Given a directory, take a vector of resulting `AudioTrack`s and group them by album and artist
 /// On completion, returns an `ArtistList`, comprising the grouped tracks
-pub fn build_library(directory: PathBuf) -> TrackList {
-    let mut tracks: Vec<AudioTrack> = Vec::new();
+pub fn build_library(directory: PathBuf) -> Box<[AudioTrack]> {
+    let mut tracks: Vec<AudioTrack> = Vec::with_capacity(256);
 
     let supported_extensions: [&str; 1] = ["flac"];
 
@@ -101,6 +118,7 @@ pub fn build_library(directory: PathBuf) -> TrackList {
                         }
                     }
                 } else if path.is_file() {
+                    // a rather unscientific method for determining file type
                     // prefer a more robust solution, but this has advantage of requiring handle
                     match path.extension() {
                         Some(p) => {
@@ -118,12 +136,16 @@ pub fn build_library(directory: PathBuf) -> TrackList {
             None => break,
         }
     }
-    tracks
+
+    // convert to and return a boxed slice to make it obvious that this:
+    // (a) is not expected to change, and;
+    // (b) to save that tiny little bit on stack size
+    return tracks.into_boxed_slice();
 }
 
 /// Takes a string slice representing path to an audio file as input, then reads the file and
 /// attempts to convert create a representative Track from the audio file
-fn read_audio_file(path: &Path) -> std::result::Result<AudioTrack, SymphoniaError> {
+fn read_audio_file(path: &Path) -> Result<AudioTrack, SymphoniaError> {
     let source = Box::new(File::open(path).expect("box file error"));
     let mss = MediaSourceStream::new(source, Default::default());
 
@@ -131,9 +153,9 @@ fn read_audio_file(path: &Path) -> std::result::Result<AudioTrack, SymphoniaErro
     hint.with_extension(
         Path::new(path)
             .extension()
-            .expect("hint extension")
+            .expect("failed to extract file extension")
             .to_str()
-            .expect("hint to str"),
+            .expect("extension to str conversion failed"),
     );
 
     let meta_opts: MetadataOptions = Default::default();
@@ -147,80 +169,26 @@ fn read_audio_file(path: &Path) -> std::result::Result<AudioTrack, SymphoniaErro
     if let Some(meta) = probe.format.metadata().current() {
         let tags = meta.tags();
         if !tags.is_empty() {
-            Ok(AudioTrack::Full(build_track_with_metadata(path, tags)))
+            Ok(AudioTrack::new_full(path, tags))
         } else {
-            Ok(AudioTrack::Limited(build_track_without_metadata(path)))
+            Ok(AudioTrack::new_limited(path))
         }
     } else if let Some(meta) = probe.metadata.get().as_ref().and_then(|m| m.current()) {
         let tags = meta.tags();
         if !tags.is_empty() {
-            Ok(AudioTrack::Full(build_track_with_metadata(path, tags)))
+            Ok(AudioTrack::new_full(path, tags))
         } else {
-            Ok(AudioTrack::Limited(build_track_without_metadata(path)))
+            Ok(AudioTrack::new_limited(path))
         }
     } else {
-        Ok(AudioTrack::Limited(build_track_without_metadata(path)))
+        Ok(AudioTrack::new_limited(path))
     }
 }
 
-fn build_track_with_metadata(path: &Path, metadata: &[Tag]) -> FullAudioTrack {
-    let mut track: FullAudioTrack = Default::default();
+// fn _check_cache() {
+//     todo!("check if cache lock has changed. if yes, reload, else load");
+// }
 
-    track.path = path.to_string_lossy().into_owned();
-
-    for tag in metadata.iter().filter(|t| t.is_known()) {
-        if let Some(key) = tag.std_key {
-            let key = format!("{:?}", key);
-            match key.as_str() {
-                "TrackTitle" => track.title = tag.value.to_string(),
-                "Date" => track.date = tag.value.to_string(),
-                "Lyrics" => track.lyrics = tag.value.to_string(),
-                // "TrackNumber" => match tag.value.to_string().parse::<i32>() {
-                //     Ok(i) => track.track_num = i,
-                //     Err(e) => {
-                //         // indicative that a tag has been incorrectly set on the audio file
-                //         eprintln!("failed track build: {e}");
-                //         track.track_num = 0;
-                //     }
-                // },
-                // "TrackTotal" => match tag.value.to_string().parse::<i32>() {
-                //     Ok(i) => track.track_total = i,
-                //     Err(e) => {
-                //         eprintln!("failed track build: {e}");
-                //         track.track_total = 0;
-                //     }
-                // },
-                // "Album" => {
-                //     track.album = tag.value.to_string();
-                // }
-                // "AlbumArtist" => {
-                //     track.album_artist = tag.value.to_string();
-                // }
-                // "Artist" => {
-                //     track.artist = tag.value.to_string();
-                // }
-                _ => (),
-            }
-        }
-    }
-    track
-}
-
-fn build_track_without_metadata(path: &Path) -> LimitedAudioTrack {
-    LimitedAudioTrack {
-        path: path.to_string_lossy().into_owned(),
-        title: path
-            .file_name()
-            .expect("build_track_without_metadata: filename from path")
-            .to_string_lossy()
-            .into_owned(),
-    }
-}
-
-fn _check_cache() {
-    todo!("check if cache lock has changed. if yes, reload, else load");
-}
-
-fn _cache_library() {
-    todo!("cache current library");
-}
+// fn _cache_library() {
+//     todo!("cache current library");
+// }

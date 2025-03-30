@@ -17,7 +17,7 @@ use ratatui::{
     widgets::{Block, Cell, Paragraph, Row, Table},
 };
 
-use crate::library::{AudioTrack, Player, TrackList};
+use crate::library::{AudioTrack, Player};
 
 mod state;
 
@@ -27,11 +27,11 @@ pub struct UserInterface {
     active: bool,
     player: Player,
     state: state::State,
-    tracks: TrackList,
+    tracks: Box<[AudioTrack]>, // reference to slice? but it's heap, so.. doesn't matter?
 }
 
 impl UserInterface {
-    pub fn new(track_list: TrackList) -> Self {
+    pub fn new(track_list: Box<[AudioTrack]>) -> Self {
         UserInterface {
             active: true,
             player: Player::new(),
@@ -40,7 +40,7 @@ impl UserInterface {
         }
     }
 
-    pub fn run(mut self, mut terminal: DefaultTerminal) {
+    pub fn run(&mut self, mut terminal: DefaultTerminal) {
         while self.active {
             terminal.draw(|frame| self.draw(frame)).unwrap();
 
@@ -81,20 +81,24 @@ impl UserInterface {
             return;
         }
         match key.code {
-            KeyCode::Esc | event::KeyCode::Char('q') => self.active = false,
+            KeyCode::Esc | KeyCode::Char('q') => self.active = false,
             KeyCode::Down => self.state.all_tracks.select_next(),
             KeyCode::Up => self.state.all_tracks.select_previous(),
             KeyCode::Enter => {
                 let path = match self.state.all_tracks.selected() {
                     Some(i) => match &self.tracks[i] {
-                        AudioTrack::Full(a) => &a.path,
+                        AudioTrack::Extended(a) => &a.path,
                         AudioTrack::Limited(a) => &a.path,
                     },
                     None => unreachable!(), // index out of bounds
                 };
                 self.player.append(path);
+                self.state.all_tracks.select_next();
             }
             KeyCode::Char(' ') => self.player.toggle_pause(),
+            KeyCode::Char('c') => self.player.clear_queue(),
+            KeyCode::PageDown => self.state.all_tracks.select_last(), // select bottom of visible page?
+            KeyCode::PageUp => self.state.all_tracks.select_first(),  // top of visible page...
             _ => (),
         }
     }
@@ -104,17 +108,16 @@ impl UserInterface {
     // }
 
     fn render_all_tracks(&mut self, area: Rect, frame: &mut Frame) {
-        let block = Block::bordered().title("tracks");
-
+        let header = Row::new([Cell::new("title"), Cell::new("path")]).bold();
         let rows: Vec<Row> = self
             .tracks
             .iter()
             .map(|v| match v {
-                AudioTrack::Full(x) => {
-                    return Row::new([Cell::from(x.title.clone()), Cell::from(x.path.clone())]);
+                AudioTrack::Extended(x) => {
+                    Row::new([Cell::new(x.title.clone()), Cell::new(x.path.clone())])
                 }
                 AudioTrack::Limited(x) => {
-                    return Row::new([Cell::from(x.title.clone()), Cell::from(x.path.clone())]);
+                    Row::new([Cell::new(x.title.clone()), Cell::new(x.path.clone())])
                 }
             })
             .collect();
@@ -123,7 +126,8 @@ impl UserInterface {
             rows,
             [Constraint::Percentage(50), Constraint::Percentage(50)],
         )
-        .block(block)
+        .block(Block::bordered().border_set(ratatui::symbols::border::ROUNDED))
+        .header(header)
         .row_highlight_style(Style::new().add_modifier(Modifier::REVERSED));
 
         frame.render_stateful_widget(tbl, area, &mut self.state.all_tracks);

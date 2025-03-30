@@ -34,4 +34,8 @@ impl Player {
             false => self.sink.pause(),
         }
     }
+
+    pub fn clear_queue(&mut self) {
+        self.sink.clear();
+    }
 }
