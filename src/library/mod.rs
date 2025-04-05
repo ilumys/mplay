@@ -25,6 +25,10 @@ pub(crate) use player::Player;
 /// Audio track with extended metadata present
 #[derive(Default)]
 pub struct FullAudioTrack {
+    /// Album the track belongs to
+    pub album: String,
+    /// Track artists
+    pub artists: String,
     /// File path
     pub path: String,
     /// Track title
@@ -32,7 +36,7 @@ pub struct FullAudioTrack {
     // album: &Album,
     // artist: &Artist,
     /// Date of track release
-    date: String,
+    pub date: String,
     /// Track lyrics
     lyrics: String, // add visuals ?
                     // duration
@@ -58,6 +62,10 @@ pub enum AudioTrack {
     Limited(LimitedAudioTrack),
 }
 
+pub struct AudioLibrary {
+    pub tracks: Box<[AudioTrack]>,
+}
+
 impl AudioTrack {
     fn new_full(path: &Path, metadata: &[Tag]) -> Self {
         let mut track: FullAudioTrack = Default::default();
@@ -68,6 +76,8 @@ impl AudioTrack {
             if let Some(key) = tag.std_key {
                 let key = format!("{:?}", key);
                 match key.as_str() {
+                    "Album" => track.album = tag.value.to_string(),
+                    "Artist" => track.artists = tag.value.to_string(),
                     "TrackTitle" => track.title = tag.value.to_string(),
                     "Date" => track.date = tag.value.to_string(),
                     "Lyrics" => track.lyrics = tag.value.to_string(),
@@ -90,57 +100,57 @@ impl AudioTrack {
     }
 }
 
-/// Given a directory, take a vector of resulting `AudioTrack`s and group them by album and artist
-/// On completion, returns an `ArtistList`, comprising the grouped tracks
-pub fn build_library(directory: PathBuf) -> Box<[AudioTrack]> {
-    let mut tracks: Vec<AudioTrack> = Vec::with_capacity(256);
+impl AudioLibrary {
+    /// Given a directory, take a vector of resulting `AudioTrack`s and group them by album and artist
+    pub fn from_directory(directory: PathBuf) -> Self {
+        let mut tracks: Vec<AudioTrack> = Vec::with_capacity(256);
 
-    let supported_extensions: [&str; 1] = ["flac"];
+        let supported_extensions: [&str; 1] = ["flac"];
 
-    // base capacity is arbitrary in size
-    // don't need to optimise too greatly (pay this once), but don't want to spam realloc either
-    let mut dirs: Vec<PathBuf> = Vec::with_capacity(256);
-    dirs.push(directory);
+        // base capacity is arbitrary in size
+        // don't need to optimise too greatly (pay this once), but don't want to spam realloc either
+        let mut dirs: Vec<PathBuf> = Vec::with_capacity(256);
+        dirs.push(directory);
 
-    // iterate through given directory
-    // if item is directory, iterate over its children, pushing all to vec
-    // if item is file, check extension is supported then pass off to build track
-    loop {
-        match dirs.pop() {
-            Some(path) => {
-                if path.is_dir() {
-                    for entry in path.read_dir().unwrap() {
-                        match entry {
-                            Ok(i) => {
-                                dirs.push(i.path());
+        // iterate through given directory
+        // if item is directory, iterate over its children, pushing all to vec
+        // if item is file, check extension is supported then pass off to build track
+        loop {
+            match dirs.pop() {
+                Some(path) => {
+                    if path.is_dir() {
+                        for entry in path.read_dir().unwrap() {
+                            match entry {
+                                Ok(i) => {
+                                    dirs.push(i.path());
+                                }
+                                Err(e) => eprintln!("{e}"),
                             }
-                            Err(e) => eprintln!("{e}"),
                         }
-                    }
-                } else if path.is_file() {
-                    // a rather unscientific method for determining file type
-                    // prefer a more robust solution, but this has advantage of requiring handle
-                    match path.extension() {
-                        Some(p) => {
-                            if supported_extensions.contains(&p.to_str().expect("ext to str")) {
-                                match read_audio_file(path.as_path()) {
-                                    Ok(ok) => tracks.push(ok),
-                                    Err(e) => eprintln!("{e}"),
+                    } else if path.is_file() {
+                        // a rather unscientific method for determining file type
+                        // prefer a more robust solution, but this has advantage of requiring handle
+                        match path.extension() {
+                            Some(p) => {
+                                if supported_extensions.contains(&p.to_str().expect("ext to str")) {
+                                    match read_audio_file(path.as_path()) {
+                                        Ok(ok) => tracks.push(ok),
+                                        Err(e) => eprintln!("{e}"),
+                                    }
                                 }
                             }
+                            None => continue,
                         }
-                        None => continue,
                     }
                 }
+                None => break,
             }
-            None => break,
+        }
+
+        Self {
+            tracks: tracks.into_boxed_slice(),
         }
     }
-
-    // convert to and return a boxed slice to make it obvious that this:
-    // (a) is not expected to change, and;
-    // (b) to save that tiny little bit on stack size
-    return tracks.into_boxed_slice();
 }
 
 /// Takes a string slice representing path to an audio file as input, then reads the file and

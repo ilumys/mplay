@@ -21,6 +21,7 @@ impl Player {
         }
     }
 
+    /// Appends a source to the sink, queuing it for playback
     pub fn append(&mut self, path: &str) {
         let file = BufReader::new(File::open(path).expect("read audio file"));
         let source = Decoder::new(file).expect("decode audio file");
@@ -28,6 +29,7 @@ impl Player {
         self.sink.append(source);
     }
 
+    /// Toggles the sink between a `play` and `pause` state
     pub fn toggle_pause(&mut self) {
         match self.sink.is_paused() {
             true => self.sink.play(),
@@ -35,7 +37,13 @@ impl Player {
         }
     }
 
+    /// Clears all sources from the sink and its queue, terminating playback
     pub fn clear_queue(&mut self) {
-        self.sink.clear();
+        self.sink.stop();
+    }
+
+    /// Skips to the next source in the sink queue
+    pub fn next(&mut self) {
+        self.sink.skip_one();
     }
 }

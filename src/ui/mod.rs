@@ -84,6 +84,8 @@ impl UserInterface {
             KeyCode::Esc | KeyCode::Char('q') => self.active = false,
             KeyCode::Down => self.state.all_tracks.select_next(),
             KeyCode::Up => self.state.all_tracks.select_previous(),
+            KeyCode::PageDown => self.state.all_tracks.select_last(), // select bottom of visible page?
+            KeyCode::PageUp => self.state.all_tracks.select_first(),  // top of visible page...
             KeyCode::Enter => {
                 let path = match self.state.all_tracks.selected() {
                     Some(i) => match &self.tracks[i] {
@@ -97,8 +99,7 @@ impl UserInterface {
             }
             KeyCode::Char(' ') => self.player.toggle_pause(),
             KeyCode::Char('c') => self.player.clear_queue(),
-            KeyCode::PageDown => self.state.all_tracks.select_last(), // select bottom of visible page?
-            KeyCode::PageUp => self.state.all_tracks.select_first(),  // top of visible page...
+            KeyCode::Char('>') => self.player.next(),
             _ => (),
         }
     }
@@ -108,26 +109,48 @@ impl UserInterface {
     // }
 
     fn render_all_tracks(&mut self, area: Rect, frame: &mut Frame) {
-        let header = Row::new([Cell::new("title"), Cell::new("path")]).bold();
+        let header = Row::new([
+            Cell::new(""),
+            Cell::new("title"),
+            Cell::new("artist(s)"),
+            Cell::new("album"),
+            Cell::new("release date"),
+        ])
+        .bold();
         let rows: Vec<Row> = self
             .tracks
             .iter()
             .map(|v| match v {
-                AudioTrack::Extended(x) => {
-                    Row::new([Cell::new(x.title.clone()), Cell::new(x.path.clone())])
-                }
-                AudioTrack::Limited(x) => {
-                    Row::new([Cell::new(x.title.clone()), Cell::new(x.path.clone())])
-                }
+                AudioTrack::Extended(x) => Row::new([
+                    Cell::new(x.path.clone()),
+                    Cell::new(x.title.clone()),
+                    Cell::new(x.artists.clone()),
+                    Cell::new(x.album.clone()),
+                    Cell::new(x.date.clone()),
+                ]),
+                AudioTrack::Limited(x) => Row::new([
+                    Cell::new(x.path.clone()),
+                    Cell::new(x.title.clone()),
+                    Cell::new(""),
+                    Cell::new(""),
+                    Cell::new(""),
+                ]),
             })
             .collect();
 
         let tbl = Table::new(
             rows,
-            [Constraint::Percentage(50), Constraint::Percentage(50)],
+            [
+                Constraint::Max(0),
+                Constraint::Fill(4),
+                Constraint::Fill(2),
+                Constraint::Fill(2),
+                Constraint::Fill(1),
+            ],
         )
         .block(Block::bordered().border_set(ratatui::symbols::border::ROUNDED))
         .header(header)
+        .column_spacing(2)
         .row_highlight_style(Style::new().add_modifier(Modifier::REVERSED));
 
         frame.render_stateful_widget(tbl, area, &mut self.state.all_tracks);
