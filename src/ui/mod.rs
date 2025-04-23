@@ -128,13 +128,9 @@ impl UserInterface {
                     Cell::new(x.album.clone()),
                     Cell::new(x.date.clone()),
                 ]),
-                AudioTrack::Limited(x) => Row::new([
-                    Cell::new(x.path.clone()),
-                    Cell::new(x.title.clone()),
-                    Cell::new(""),
-                    Cell::new(""),
-                    Cell::new(""),
-                ]),
+                AudioTrack::Limited(x) => {
+                    Row::new([Cell::new(x.path.clone()), Cell::new(x.title.clone())])
+                }
             })
             .collect();
 
