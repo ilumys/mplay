@@ -8,6 +8,7 @@ use std::{
     //collections::HashMap,
     fs::File,
     path::{Path, PathBuf},
+    rc::Rc,
 };
 
 use symphonia::{
@@ -63,7 +64,7 @@ pub enum AudioTrack {
 }
 
 pub struct AudioLibrary {
-    pub tracks: Box<[AudioTrack]>,
+    pub tracks: Box<[Rc<AudioTrack>]>,
 }
 
 impl AudioTrack {
@@ -103,7 +104,7 @@ impl AudioTrack {
 impl AudioLibrary {
     /// Given a directory, take a vector of resulting `AudioTrack`s and group them by album and artist
     pub fn from_directory(directory: PathBuf) -> Self {
-        let mut tracks: Vec<AudioTrack> = Vec::with_capacity(256);
+        let mut tracks: Vec<Rc<AudioTrack>> = Vec::with_capacity(256);
 
         let supported_extensions: [&str; 1] = ["flac"];
 
@@ -134,7 +135,7 @@ impl AudioLibrary {
                             Some(p) => {
                                 if supported_extensions.contains(&p.to_str().expect("ext to str")) {
                                     match read_audio_file(path.as_path()) {
-                                        Ok(ok) => tracks.push(ok),
+                                        Ok(ok) => tracks.push(Rc::new(ok)),
                                         Err(e) => eprintln!("{e}"),
                                     }
                                 }

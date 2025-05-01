@@ -6,7 +6,7 @@
 // artist: display all artists, selecing provides view of their albums and tracks
 // album: display all albums, selecting provides view of their tracks
 
-use std::time::Duration;
+use std::{ops::Deref, rc::Rc, time::Duration};
 
 use ratatui::{
     DefaultTerminal, Frame,
@@ -27,11 +27,11 @@ pub struct UserInterface {
     active: bool,
     player: Player,
     state: state::State,
-    tracks: Box<[AudioTrack]>, // reference to slice? but it's heap, so.. doesn't matter?
+    tracks: Box<[Rc<AudioTrack>]>, // reference to slice? but it's heap, so.. doesn't matter?
 }
 
 impl UserInterface {
-    pub fn new(track_list: Box<[AudioTrack]>) -> Self {
+    pub fn new(track_list: Box<[Rc<AudioTrack>]>) -> Self {
         UserInterface {
             active: true,
             player: Player::new(),
@@ -43,6 +43,8 @@ impl UserInterface {
     pub fn run(&mut self, mut terminal: DefaultTerminal) {
         while self.active {
             terminal.draw(|frame| self.draw(frame)).unwrap();
+
+            self.player.try_next();
 
             // turn `read` call into `poll` to not block input
             if event::poll(Duration::from_millis(100)).is_ok_and(|r| r) {
@@ -66,12 +68,13 @@ impl UserInterface {
             .gray()
             .block(Block::bordered().title("search").bold());
 
-        let status_data = Paragraph::new("todo: implement status for current track")
-            .block(Block::bordered().title("status").bold());
+        // let status_data = Paragraph::new("todo: implement status for current track")
+        //     .block(Block::bordered().title("status").bold());
 
         frame.render_widget(search_data, search_area);
-        frame.render_widget(status_data, status_area);
+        //frame.render_widget(status_data, status_area);
         self.render_all_tracks(body_area, frame);
+        self.render_status(status_area, frame);
     }
 
     fn handle_key(&mut self, key: KeyEvent) {
@@ -84,17 +87,14 @@ impl UserInterface {
             KeyCode::Esc | KeyCode::Char('q') => self.active = false,
             KeyCode::Down => self.state.all_tracks.select_next(),
             KeyCode::Up => self.state.all_tracks.select_previous(),
-            KeyCode::PageDown => self.state.all_tracks.select_last(), // select bottom of visible page?
-            KeyCode::PageUp => self.state.all_tracks.select_first(),  // top of visible page...
+            KeyCode::PageDown => self.state.all_tracks.select_last(),
+            KeyCode::PageUp => self.state.all_tracks.select_first(),
             KeyCode::Enter => {
-                let path = match self.state.all_tracks.selected() {
-                    Some(i) => match &self.tracks[i] {
-                        AudioTrack::Extended(a) => &a.path,
-                        AudioTrack::Limited(a) => &a.path,
-                    },
+                match self.state.all_tracks.selected() {
+                    // this escaping reference is a painful one. todo: some rust smart pointer solution
+                    Some(i) => self.player.append_queue(self.tracks[i].clone()),
                     None => unreachable!(), // index out of bounds
                 };
-                self.player.append(path);
                 self.state.all_tracks.select_next();
             }
             KeyCode::Char(' ') => self.player.toggle_pause(),
@@ -120,7 +120,7 @@ impl UserInterface {
         let rows: Vec<Row> = self
             .tracks
             .iter()
-            .map(|v| match v {
+            .map(|v| match v.deref() {
                 AudioTrack::Extended(x) => Row::new([
                     Cell::new(x.path.clone()),
                     Cell::new(x.title.clone()),
@@ -152,7 +152,18 @@ impl UserInterface {
         frame.render_stateful_widget(tbl, area, &mut self.state.all_tracks);
     }
 
-    // fn render_status(&mut self, area: Rect, buf: &mut Buffer) {
-    //     todo!("render status of currently playing track");
-    // }
+    fn render_status(&mut self, area: Rect, frame: &mut Frame) {
+        let last_played: String = match &self.player.last_played {
+            Some(s) => match s.deref() {
+                AudioTrack::Extended(i) => {
+                    format!("{0}\n{1}\n{2} - {3}", i.title, i.artists, i.album, i.date)
+                }
+                AudioTrack::Limited(i) => i.title.clone(),
+            },
+            None => String::from("none"),
+        };
+        let widget =
+            Paragraph::new(last_played).block(Block::bordered().title("currently playing"));
+        frame.render_widget(widget, area);
+    }
 }
