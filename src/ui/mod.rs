@@ -6,7 +6,7 @@
 // artist: display all artists, selecing provides view of their albums and tracks
 // album: display all albums, selecting provides view of their tracks
 
-use std::{ops::Deref, rc::Rc, time::Duration};
+use std::{ops::Deref, time::Duration};
 
 use ratatui::{
     DefaultTerminal, Frame,
@@ -17,7 +17,7 @@ use ratatui::{
     widgets::{Block, Cell, Paragraph, Row, Table},
 };
 
-use crate::library::{AudioTrack, Player};
+use crate::library::{AudioTrack, LibraryCollection, Player};
 
 mod state;
 
@@ -27,11 +27,11 @@ pub struct UserInterface {
     active: bool,
     player: Player,
     state: state::State,
-    tracks: Box<[Rc<AudioTrack>]>, // reference to slice? but it's heap, so.. doesn't matter?
+    tracks: LibraryCollection,
 }
 
 impl UserInterface {
-    pub fn new(track_list: Box<[Rc<AudioTrack>]>) -> Self {
+    pub fn new(track_list: LibraryCollection) -> Self {
         UserInterface {
             active: true,
             player: Player::new(),
@@ -91,7 +91,6 @@ impl UserInterface {
             KeyCode::PageUp => self.state.all_tracks.select_first(),
             KeyCode::Enter => {
                 match self.state.all_tracks.selected() {
-                    // this escaping reference is a painful one. todo: some rust smart pointer solution
                     Some(i) => self.player.append_queue(self.tracks[i].clone()),
                     None => unreachable!(), // index out of bounds
                 };

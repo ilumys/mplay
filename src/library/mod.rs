@@ -21,6 +21,8 @@ use symphonia::{
 
 mod player;
 
+pub type LibraryCollection = Box<[Rc<AudioTrack>]>; // reference to slice? but it's heap, so.. doesn't matter?
+
 pub(crate) use player::Player;
 
 /// Audio track with extended metadata present
@@ -64,7 +66,7 @@ pub enum AudioTrack {
 }
 
 pub struct AudioLibrary {
-    pub tracks: Box<[Rc<AudioTrack>]>,
+    pub tracks: LibraryCollection,
 }
 
 impl AudioTrack {
