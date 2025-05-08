@@ -11,7 +11,7 @@ use std::{ops::Deref, time::Duration};
 use ratatui::{
     DefaultTerminal, Frame,
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
-    layout::{Constraint, Layout, Rect},
+    layout::{Constraint, Layout, Position, Rect},
     prelude::Stylize,
     style::{Modifier, Style},
     widgets::{Block, Cell, Paragraph, Row, Table},
@@ -63,49 +63,75 @@ impl UserInterface {
         ])
         .areas(frame.area());
 
-        let search_data = Paragraph::new("todo: implement search by artist, album, or track")
-            .italic()
-            .gray()
-            .block(Block::bordered().title("search").bold());
-
-        // let status_data = Paragraph::new("todo: implement status for current track")
-        //     .block(Block::bordered().title("status").bold());
-
-        frame.render_widget(search_data, search_area);
-        //frame.render_widget(status_data, status_area);
+        self.render_search(search_area, frame);
         self.render_all_tracks(body_area, frame);
         self.render_status(status_area, frame);
     }
 
     fn handle_key(&mut self, key: KeyEvent) {
-        // `key.kind` not always set. keep an eye out for events failing at this step
-        // unlikely to occur for me, given kb/os used
-        if key.kind != KeyEventKind::Press {
-            return;
-        }
-        match key.code {
-            KeyCode::Esc | KeyCode::Char('q') => self.active = false,
-            KeyCode::Down => self.state.all_tracks.select_next(),
-            KeyCode::Up => self.state.all_tracks.select_previous(),
-            KeyCode::PageDown => self.state.all_tracks.select_last(),
-            KeyCode::PageUp => self.state.all_tracks.select_first(),
-            KeyCode::Enter => {
-                match self.state.all_tracks.selected() {
-                    Some(i) => self.player.append_queue(self.tracks[i].clone()),
-                    None => unreachable!(), // index out of bounds
-                };
-                self.state.all_tracks.select_next();
+        match self.state.mode {
+            state::Mode::Playback => {
+                if key.kind == KeyEventKind::Press {
+                    // toggle between selected panels (widgets)?
+                    match key.code {
+                        KeyCode::Char('q') => self.active = false,
+                        KeyCode::Down => self.state.all_tracks.select_next(),
+                        KeyCode::Up => self.state.all_tracks.select_previous(),
+                        KeyCode::PageDown => self.state.all_tracks.select_last(),
+                        KeyCode::PageUp => self.state.all_tracks.select_first(),
+                        KeyCode::Enter => {
+                            match self.state.all_tracks.selected() {
+                                Some(i) => self.player.append_queue(self.tracks[i].clone()),
+                                None => unreachable!(), // index out of bounds
+                            };
+                            self.state.all_tracks.select_next();
+                        }
+                        KeyCode::Char(' ') => self.player.toggle_pause(),
+                        KeyCode::Char('c') => self.player.clear_queue(),
+                        KeyCode::Char('>') => self.player.next(),
+                        KeyCode::Char('/') => self.state.mode = state::Mode::Search,
+                        _ => (),
+                    }
+                }
             }
-            KeyCode::Char(' ') => self.player.toggle_pause(),
-            KeyCode::Char('c') => self.player.clear_queue(),
-            KeyCode::Char('>') => self.player.next(),
-            _ => (),
+            state::Mode::Search => {
+                if key.kind == KeyEventKind::Press {
+                    match key.code {
+                        KeyCode::Esc => {
+                            self.state.search.query = String::new();
+                            self.state.search.cursor_index = 0;
+                            self.state.mode = state::Mode::Playback;
+                        }
+                        KeyCode::Enter => self.state.mode = state::Mode::Playback,
+                        KeyCode::Char(c) => self.state.search.new_char(c),
+                        KeyCode::Left => self.state.search.move_cursor_left(),
+                        KeyCode::Right => self.state.search.move_cursor_right(),
+                        KeyCode::Backspace | KeyCode::Delete => self.state.search.delete_char(),
+                        _ => (),
+                    }
+                }
+            }
         }
     }
 
-    // fn render_search(&mut self, area: Rect, buf: &mut Buffer) {
-    //     todo!("render stateful search, accepting user input");
-    // }
+    fn render_search(&mut self, area: Rect, frame: &mut Frame) {
+        let x = self.state.search.query.as_str();
+        let w = Paragraph::new(x).block(
+            Block::bordered()
+                .title("search")
+                .title_style(Modifier::BOLD),
+        );
+
+        match self.state.mode {
+            state::Mode::Playback => (),
+            state::Mode::Search => frame.set_cursor_position(Position::new(
+                area.x + self.state.search.cursor_index as u16 + 1,
+                area.y + 1,
+            )),
+        }
+
+        frame.render_widget(w, area);
+    }
 
     fn render_all_tracks(&mut self, area: Rect, frame: &mut Frame) {
         let header = Row::new([
@@ -119,16 +145,29 @@ impl UserInterface {
         let rows: Vec<Row> = self
             .tracks
             .iter()
-            .map(|v| match v.deref() {
-                AudioTrack::Extended(x) => Row::new([
-                    Cell::new(x.path.clone()),
-                    Cell::new(x.title.clone()),
-                    Cell::new(x.artists.clone()),
-                    Cell::new(x.album.clone()),
-                    Cell::new(x.date.clone()),
-                ]),
-                AudioTrack::Limited(x) => {
-                    Row::new([Cell::new(x.path.clone()), Cell::new(x.title.clone())])
+            .filter_map(|v| {
+                let q = self.state.search.query.to_lowercase();
+                match v.deref() {
+                    AudioTrack::Extended(x)
+                        if x.title.to_lowercase().contains(&q)
+                            || x.album.to_lowercase().contains(&q)
+                            || x.artists.to_lowercase().contains(&q) =>
+                    {
+                        Some(Row::new([
+                            Cell::new(x.path.clone()),
+                            Cell::new(x.title.clone()),
+                            Cell::new(x.artists.clone()),
+                            Cell::new(x.album.clone()),
+                            Cell::new(x.date.clone()),
+                        ]))
+                    }
+                    AudioTrack::Limited(x) if x.title.to_lowercase().contains(&q) => {
+                        Some(Row::new([
+                            Cell::new(x.path.clone()),
+                            Cell::new(x.title.clone()),
+                        ]))
+                    }
+                    _ => None,
                 }
             })
             .collect();
@@ -151,7 +190,9 @@ impl UserInterface {
         frame.render_stateful_widget(tbl, area, &mut self.state.all_tracks);
     }
 
+    /// Render the status panel
     fn render_status(&mut self, area: Rect, frame: &mut Frame) {
+        // TODO: duration, play/pause
         let last_played: String = match &self.player.last_played {
             Some(s) => match s.deref() {
                 AudioTrack::Extended(i) => {
@@ -161,8 +202,10 @@ impl UserInterface {
             },
             None => String::from("none"),
         };
-        let widget =
-            Paragraph::new(last_played).block(Block::bordered().title("currently playing"));
+        let title = Block::bordered()
+            .title("currently playing")
+            .title_style(Modifier::BOLD);
+        let widget = Paragraph::new(last_played).block(title);
         frame.render_widget(widget, area);
     }
 }
