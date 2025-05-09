@@ -6,7 +6,7 @@
 // artist: display all artists, selecing provides view of their albums and tracks
 // album: display all albums, selecting provides view of their tracks
 
-use std::{ops::Deref, time::Duration};
+use std::{ops::Deref, rc::Rc, time::Duration};
 
 use ratatui::{
     DefaultTerminal, Frame,
@@ -81,7 +81,36 @@ impl UserInterface {
                         KeyCode::PageUp => self.state.all_tracks.select_first(),
                         KeyCode::Enter => {
                             match self.state.all_tracks.selected() {
-                                Some(i) => self.player.append_queue(self.tracks[i].clone()),
+                                Some(i) => {
+                                    // index is no longer accurate as the resulting map has been filtered
+                                    // no method to return selected row, only index, so need to filter again here
+                                    // we only pay this cost on `Enter` so it could be worse, but undesirable regardless
+                                    let t: Vec<Rc<AudioTrack>> = self
+                                        .tracks
+                                        .iter()
+                                        .filter_map(|v| {
+                                            let q = self.state.search.query.to_lowercase();
+                                            match v.deref() {
+                                                AudioTrack::Extended(x)
+                                                    if x.title.to_lowercase().contains(&q)
+                                                        || x.album.to_lowercase().contains(&q)
+                                                        || x.artists
+                                                            .to_lowercase()
+                                                            .contains(&q) =>
+                                                {
+                                                    Some(v.clone())
+                                                }
+                                                AudioTrack::Limited(x)
+                                                    if x.title.to_lowercase().contains(&q) =>
+                                                {
+                                                    Some(v.clone())
+                                                }
+                                                _ => None,
+                                            }
+                                        })
+                                        .collect();
+                                    self.player.append_queue(t[i].clone());
+                                }
                                 None => unreachable!(), // index out of bounds
                             };
                             self.state.all_tracks.select_next();
@@ -135,17 +164,19 @@ impl UserInterface {
 
     fn render_all_tracks(&mut self, area: Rect, frame: &mut Frame) {
         let header = Row::new([
-            Cell::new(""),
+            Cell::new("index"),
             Cell::new("title"),
             Cell::new("artist(s)"),
             Cell::new("album"),
             Cell::new("release date"),
         ])
         .bold();
+
         let rows: Vec<Row> = self
             .tracks
             .iter()
-            .filter_map(|v| {
+            .enumerate()
+            .filter_map(|(k, v)| {
                 let q = self.state.search.query.to_lowercase();
                 match v.deref() {
                     AudioTrack::Extended(x)
@@ -154,7 +185,7 @@ impl UserInterface {
                             || x.artists.to_lowercase().contains(&q) =>
                     {
                         Some(Row::new([
-                            Cell::new(x.path.clone()),
+                            Cell::new(k.to_string()),
                             Cell::new(x.title.clone()),
                             Cell::new(x.artists.clone()),
                             Cell::new(x.album.clone()),
@@ -163,7 +194,7 @@ impl UserInterface {
                     }
                     AudioTrack::Limited(x) if x.title.to_lowercase().contains(&q) => {
                         Some(Row::new([
-                            Cell::new(x.path.clone()),
+                            Cell::new(k.to_string()),
                             Cell::new(x.title.clone()),
                         ]))
                     }
