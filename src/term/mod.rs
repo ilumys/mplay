@@ -17,7 +17,7 @@ use ratatui::{
     widgets::{Block, Cell, Paragraph, Row, Table},
 };
 
-use crate::library::{AudioTrack, LibraryCollection, Player};
+use crate::loader::{AudioTrack, LibraryCollection};
 
 mod state;
 
@@ -82,9 +82,7 @@ impl UserInterface {
                         KeyCode::Enter => {
                             match self.state.all_tracks.selected() {
                                 Some(i) => {
-                                    // index is no longer accurate as the resulting map has been filtered
-                                    // no method to return selected row, only index, so need to filter again here
-                                    // we only pay this cost on `Enter` so it could be worse, but undesirable regardless
+                                    // filter again so that the index will match in both vecs
                                     let t: Vec<Rc<AudioTrack>> = self
                                         .tracks
                                         .iter()

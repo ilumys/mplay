@@ -2,16 +2,18 @@
 
 use std::path::PathBuf;
 
-mod library;
-mod ui;
+mod loader;
+mod sink;
+mod term;
 
-use library::AudioLibrary;
+use loader::AudioLibrary;
 
-fn main() {
+#[tokio::main] // async runtime
+async fn main() {
     // todo: config file
     let music_dir = format!("{}/Music/", env!("HOME"));
     let library = AudioLibrary::from_directory(PathBuf::from(music_dir));
 
-    ui::UserInterface::new(library.tracks).run(ratatui::init());
+    term::UserInterface::new(library.tracks).run(ratatui::init());
     ratatui::restore();
 }

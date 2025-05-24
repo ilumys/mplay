@@ -1,8 +1,4 @@
-//! Scans for and builds representative tracks for all audio files in a given directory
-//!
-//! Once the initial read is completed, groups tracks by artist and album for representation in UI
-//!
-//! TODO: cache
+//! shun_loader
 
 use std::{
     //collections::HashMap,
@@ -19,13 +15,9 @@ use symphonia::{
     default::get_probe,
 };
 
-mod player;
+// TODO: add a log file
+// TODO: add caching
 
-pub type LibraryCollection = Box<[Rc<AudioTrack>]>; // reference to slice? but it's heap, so.. doesn't matter?
-
-pub(crate) use player::Player;
-
-/// Audio track with extended metadata present
 #[derive(Default)]
 pub struct FullAudioTrack {
     /// Album the track belongs to
@@ -68,6 +60,11 @@ pub enum AudioTrack {
 pub struct AudioLibrary {
     pub tracks: LibraryCollection,
 }
+
+pub type LibraryCollection = Box<[Rc<AudioTrack>]>; // reference to slice? but it's heap, so.. doesn't matter?
+
+// TODO: accept config file path, or use a default config file
+// pub fn initialise_config(music_dir: Option<PathBuf>) {}
 
 impl AudioTrack {
     fn new_full(path: &Path, metadata: &[Tag]) -> Self {
@@ -197,11 +194,3 @@ fn read_audio_file(path: &Path) -> Result<AudioTrack, SymphoniaError> {
         Ok(AudioTrack::new_limited(path))
     }
 }
-
-// fn _check_cache() {
-//     todo!("check if cache lock has changed. if yes, reload, else load");
-// }
-
-// fn _cache_library() {
-//     todo!("cache current library");
-// }
