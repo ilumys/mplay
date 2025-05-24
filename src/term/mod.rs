@@ -17,7 +17,10 @@ use ratatui::{
     widgets::{Block, Cell, Paragraph, Row, Table},
 };
 
-use crate::library::{AudioTrack, LibraryCollection, Player};
+use crate::{
+    loader::{AudioTrack, LibraryCollection},
+    sink::Sink,
+};
 
 mod state;
 
@@ -25,7 +28,7 @@ use state::State;
 
 pub struct UserInterface {
     active: bool,
-    player: Player,
+    player: Sink,
     state: state::State,
     tracks: LibraryCollection,
 }
@@ -34,7 +37,7 @@ impl UserInterface {
     pub fn new(track_list: LibraryCollection) -> Self {
         UserInterface {
             active: true,
-            player: Player::new(),
+            player: Sink::new(),
             state: State::new(),
             tracks: track_list,
         }
@@ -44,6 +47,7 @@ impl UserInterface {
         while self.active {
             terminal.draw(|frame| self.draw(frame)).unwrap();
 
+            // move this upwards into this modules core struct
             self.player.try_next();
 
             // turn `read` call into `poll` to not block input
@@ -82,9 +86,7 @@ impl UserInterface {
                         KeyCode::Enter => {
                             match self.state.all_tracks.selected() {
                                 Some(i) => {
-                                    // index is no longer accurate as the resulting map has been filtered
-                                    // no method to return selected row, only index, so need to filter again here
-                                    // we only pay this cost on `Enter` so it could be worse, but undesirable regardless
+                                    // filter again so that the index will match in both vecs
                                     let t: Vec<Rc<AudioTrack>> = self
                                         .tracks
                                         .iter()
