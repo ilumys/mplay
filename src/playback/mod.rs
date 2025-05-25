@@ -2,7 +2,7 @@ use std::{collections::VecDeque, fs::File, io::BufReader, rc::Rc};
 
 use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
 
-use super::AudioTrack;
+use crate::loader::AudioTrack;
 
 pub struct Player {
     pub last_played: Option<Rc<AudioTrack>>, // think on implementation of this more

@@ -1,6 +1,6 @@
 [package]
 name = "mplay"
-version = "0.4.2"
+version = "0.4.3"
 description = "Music player"
 publish = false
 edition = "2024"

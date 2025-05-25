@@ -17,7 +17,8 @@ use ratatui::{
     widgets::{Block, Cell, Paragraph, Row, Table},
 };
 
-use crate::library::{AudioTrack, LibraryCollection, Player};
+use crate::loader::{AudioTrack, LibraryCollection};
+use crate::playback::Player;
 
 mod state;
 

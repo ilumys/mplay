@@ -19,11 +19,7 @@ use symphonia::{
     default::get_probe,
 };
 
-mod player;
-
 pub type LibraryCollection = Box<[Rc<AudioTrack>]>; // reference to slice? but it's heap, so.. doesn't matter?
-
-pub(crate) use player::Player;
 
 /// Audio track with extended metadata present
 #[derive(Default)]
