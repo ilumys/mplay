@@ -40,13 +40,15 @@ impl UserInterface {
         }
     }
 
+    // I would like to make much more of impl async, but like to work on own sink impl first
     pub fn run(&mut self, mut terminal: DefaultTerminal) {
         while self.active {
             terminal.draw(|frame| self.draw(frame)).unwrap();
 
             self.player.try_next();
 
-            // turn `read` call into `poll` to not block input
+            // fans speed up without a longer than 0ms wait, and not feeling any latency yet
+            // something to keep an eye out for, and perhaps profile
             if event::poll(Duration::from_millis(100)).is_ok_and(|r| r) {
                 if let Event::Key(k) = event::read().expect("event read") {
                     self.handle_key(k);
@@ -79,12 +81,26 @@ impl UserInterface {
                         KeyCode::Up => self.state.all_tracks.select_previous(),
                         KeyCode::PageDown => self.state.all_tracks.select_last(),
                         KeyCode::PageUp => self.state.all_tracks.select_first(),
+                        KeyCode::Char('u') => {
+                            // move up 10 lines.  prefer this to be a variable number
+                            // determined by visible lines on the screen
+                            if let Some(i) = self.state.all_tracks.selected() {
+                                let n = usize::saturating_sub(i, 10);
+                                self.state.all_tracks.select(Some(n));
+                            }
+                        }
+                        KeyCode::Char('d') => {
+                            // inverse of `u`
+                            if let Some(i) = self.state.all_tracks.selected() {
+                                let n = usize::saturating_add(i, 10);
+                                self.state.all_tracks.select(Some(n));
+                            }
+                        }
                         KeyCode::Enter => {
                             match self.state.all_tracks.selected() {
                                 Some(i) => {
                                     // index is no longer accurate as the resulting map has been filtered
                                     // no method to return selected row, only index, so need to filter again here
-                                    // we only pay this cost on `Enter` so it could be worse, but undesirable regardless
                                     let t: Vec<Rc<AudioTrack>> = self
                                         .tracks
                                         .iter()
@@ -117,7 +133,7 @@ impl UserInterface {
                         }
                         KeyCode::Char(' ') => self.player.toggle_pause(),
                         KeyCode::Char('c') => self.player.clear_queue(),
-                        KeyCode::Char('>') => self.player.next(),
+                        KeyCode::Char('>') => self.player.skip_one(),
                         KeyCode::Char('/') => self.state.mode = state::Mode::Search,
                         _ => (),
                     }

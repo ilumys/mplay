@@ -1,6 +1,6 @@
 [package]
 name = "mplay"
-version = "0.4.1"
+version = "0.4.2"
 description = "Music player"
 publish = false
 edition = "2024"
@@ -10,4 +10,4 @@ symphonia = "0.5.4"
 rodio = { version = "0.20.1", default-features = false, features = [
     "symphonia-flac",
 ] }
-ratatui = "0.29.0" # my deps ;(
+ratatui = "0.29.0"

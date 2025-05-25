@@ -5,7 +5,7 @@ use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
 use super::AudioTrack;
 
 pub struct Player {
-    pub last_played: Option<Rc<AudioTrack>>, // think on implementation of this more. if can clear on sink empty, then it can represent current
+    pub last_played: Option<Rc<AudioTrack>>, // think on implementation of this more
     sink: Sink,
     _stream: OutputStream,
     _stream_handle: OutputStreamHandle,
@@ -35,12 +35,12 @@ impl Player {
     #[inline]
     pub fn try_next(&mut self) {
         if self.sink.empty() {
-            self.play_next();
+            self.play_from_queue();
         }
     }
 
     /// Plays the next track in the queue
-    fn play_next(&mut self) {
+    fn play_from_queue(&mut self) {
         match self.queue.pop_front() {
             Some(i) => match &*i {
                 AudioTrack::Extended(a) => {
@@ -56,7 +56,7 @@ impl Player {
                     self.last_played = Some(i.clone());
                 }
             },
-            None => self.last_played = None, // wonder if this is trying to write every time or if it knows not to write twice?
+            None => self.last_played = None, // curious if this writes every time or `None` abstraction knows not to
         }
     }
 
@@ -72,11 +72,13 @@ impl Player {
     pub fn clear_queue(&mut self) {
         self.sink.stop();
         self.queue.clear();
+        self.last_played = None;
     }
 
     /// Skips to the next source in the sink queue
-    pub fn next(&mut self) {
-        //self.sink.skip_one();
-        // TODO: play next track in queue
+    pub fn skip_one(&mut self) {
+        self.sink.clear();
+        self.toggle_pause(); // `clear` pauses; set to play
+        self.play_from_queue();
     }
 }
